@@ -1,26 +1,46 @@
 # VramDeck
 
-**面向 1–4 卡（Few-GPU）的多模态本地 AI 资源管理器与统一控制平面**
+[![CI](https://github.com/Aoike123/VramDeck/actions/workflows/ci.yml/badge.svg)](https://github.com/Aoike123/VramDeck/actions/workflows/ci.yml)
+![Node >=22.19](https://img.shields.io/badge/node-%3E%3D22.19-339933)
+![OS](https://img.shields.io/badge/OS-Linux%20%7C%20macOS%20%7C%20Windows-blue)
 
-> [English README (README.md)](README.md) · [文档索引](docs/README.md) · [20 分钟接入新引擎](docs/guide/ADD_ENGINE.md) · [贡献指南](CONTRIBUTING.md)
+**把大语言模型、文生图、视频生成和语音工具一起跑在 1–4 张显卡上——不爆显存（OOM），不折腾端口，也不用手动反复重启。**
 
-**VramDeck**（由 `llm-backend` 演进升级而来）将 1–4 张消费级或工作站显卡（以及无 GPU 的纯 CPU 主机）整合为一套跨平台（**Linux / macOS / Windows**）的统一 OpenAI 兼容网关（`:18982`）、分级加载 MCP 媒体服务（`local-media`）、中英文双语 Web 控制台（`:13000`）与一键下载部署中心。
-
----
-
-## 核心特性
-
-- **单进程零依赖控制平面**：基于 **Node.js >= 22.19** 原生 TypeScript，不再强绑定 `systemd`、Prometheus 或宿主机 Python 才能启动面板与网关。
-- **1–4 卡 Best-Fit 资源池调度**：支持多厂商混合设备（`nvidia:0`、`amd:1`、`apple:0`、`intel:2`），同卡 `shared` 轻量服务共存、多卡张量并行原子预留，并在显存不足时按 `idle -> batch_eligible -> lowest cold_start_weight` 优雅驱逐。
-- **三态可插拔驱动（`process` | `docker` | `external`）**：原生子进程拉起 `llama.cpp` / `whisper.cpp` / `kokoro`、容器拉起 `vLLM` 或 **ROCm Pro Pack**，或零侵入接管本机已运行的 `Ollama` / `ComfyUI` / `LM Studio`。
-- **引擎与模型 Hub**：自动扫描本机可用服务、按实时可用显存推荐最合适的量化权重（`fits` / `tight` / `too_large`），支持 **Hugging Face / HF-Mirror / ModelScope** 断点续传与 SHA256 校验，并支持挂载本地权重目录。
-- **完全向后兼容 `llm-backend` 与 `./lab`**：保留 `llm-backend` 兼容入口、`./lab` 命令与 `.llm-backend-artifacts` 目录标记，并完整保留 8 个 AMD Radeon R9700 / Paiton 引擎（归组为可选 `rocm-pro` 包）。
+[English (README.md)](README.md) · [文档索引](docs/README.md) · [20 分钟接入新引擎](docs/guide/ADD_ENGINE.md) · [贡献指南](CONTRIBUTING.md)
 
 ---
 
-## 快速开始（3 步启动）
+## 为什么选择 VramDeck？
 
-### 第 1 步：运行一键安装脚本
+当你在一台家用 PC 或 2–4 卡工作站上同时使用本地编程模型、ComfyUI 生图/视频工作流、Whisper 语音识别或 TTS 时，很快会遇到端口混乱、显存打架和手动杀进程的麻烦。**VramDeck** 为你的所有本地 AI 引擎提供一个统一的显存调度中枢、单一 API 网关与实时控制台：
+
+- **自动显存编排（告别 OOM）**：显存充足时让轻量模型共享同一张显卡；运行大模型时跨多卡原子预留显存；从对话切换至生图或视频生成时自动排队并优雅让位，无需手工关停服务。
+- **零侵入接管已有工具**：一键扫描并接管本机正在运行的 **Ollama**、**ComfyUI**、**LM Studio** 和 **llama.cpp** 服务；也可以直接按需拉起原生进程（`llama.cpp`、`whisper.cpp`、`kokoro`）或 Docker 容器（`vLLM`）。
+- **一个网关、一个 MCP 接入全部客户端**：Cursor、Open WebUI、Cherry Studio、Continue 和自研脚本只需接入同一套 OpenAI 兼容网关（`http://127.0.0.1:18982/v1`）；AI Agent 通过 `platforms/mcp/server.mjs`（`local-media`）即可按需发现并调用本地生图、视频、语音合成与转录工具。
+- **看清显存再下载（模型中心 Hub）**：拉取权重前实时标注当前显卡是否放得下（`可流畅运行` / `显存较紧` / `显存不足`），支持 **Hugging Face**、**HF-Mirror**、**ModelScope** 断点续传与 SHA256 校验，也支持直接挂载本地已有模型目录。
+- **开箱即用的双语控制台**：打开 `http://127.0.0.1:13000` 即可实时查看多卡显存占用、温度与算力负载、任务队列、作品库、API 密钥，并支持右上角 `EN` / `中文` 无刷新切换。
+
+---
+
+## 工作原理
+
+```text
+  应用 / IDE / Agent              VramDeck 控制平面                      底层引擎与硬件
+┌──────────────────────┐      ┌────────────────────────┐      ┌──────────────────────────────────┐
+│ Cursor / Open WebUI  │─────▶│ 统一网关 (:18982 /v1)  │─────▶│ 一键接管：Ollama · ComfyUI · LM  │
+│ 业务脚本 / SDK       │      │ 队列 · 租约 · 密钥额度 │      │ 原生托管：llama.cpp · vLLM       │
+├──────────────────────┤      ├────────────────────────┤      │ 音频语音：whisper.cpp · Kokoro   │
+│ Claude / MCP 客户端  │─────▶│ MCP (local-media)      │      ├──────────────────────────────────┤
+├──────────────────────┤      ├────────────────────────┤      │ 1–4 卡 / 混插显卡 / CPU 模式     │
+│ 浏览器控制台         │─────▶│ Web 面板 (:13000)      │      │ CUDA · ROCm · Metal · Vulkan     │
+└──────────────────────┘      └────────────────────────┘      └──────────────────────────────────┘
+```
+
+---
+
+## 60 秒快速上手
+
+### 1. 运行一键安装脚本
 
 **Linux / macOS：**
 
@@ -34,50 +54,65 @@ bash scripts/install.sh
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 
-> 可先追加 `--dry-run`（Linux/macOS）或 `-DryRun`（Windows）预览安装动作而不修改系统。
+> 可先追加 `--dry-run`（bash）或 `-DryRun`（PowerShell）安全预览将执行的操作，不修改系统。
 
-### 第 2 步：启动 VramDeck 控制平面
+### 2. 启动 VramDeck
 
 ```bash
 node platforms/workbench/cli.mjs start
-# 或使用兼容命令入口：
-./lab start
 ```
 
-### 第 3 步：访问控制台与接入网关
+### 3. 打开控制台并发起第一次调用
 
-- **Web 控制台**：`http://127.0.0.1:13000`（支持右上角/侧边栏 `EN` / `中文` 无刷新切换、多卡显存拓扑图与 Hub 下载中心）
-- **OpenAI / 多模态 API 网关**：`http://127.0.0.1:18982/v1`
-- **MCP 工具服务端（`local-media`）**：通过 `platforms/mcp/server.mjs` 提供分级加载的 `browse_media` 工具面
+- **Web 控制台**：访问 `http://127.0.0.1:13000`，查看本机 GPU 拓扑、在 **引擎与模型中心（Hub）** 扫描并接管已有本地服务，或切换 `EN` / `中文`。
+- **统一 API 网关**：通过 `http://127.0.0.1:18982/v1` 查询当前可用模型并发起对话请求：
+
+```bash
+curl http://127.0.0.1:18982/v1/models
+
+curl http://127.0.0.1:18982/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen2.5:7b",
+    "messages": [{"role": "user", "content": "你好，VramDeck！"}]
+  }'
+```
 
 ---
 
-## 硬件与后端兼容矩阵
+## 适配你的常用工具
 
-| 厂商 / 计算后端 | 支持操作系统 | 自动发现方式 | 可用引擎 |
+| 客户端 / 场景 | 接入方式 | 获得的能力 |
+|---|---|---|
+| **Cursor / Continue / Open WebUI / Cherry Studio** | 将 OpenAI Base URL 设为 `http://127.0.0.1:18982/v1` | 单一入口调用 Ollama、llama.cpp、vLLM，多模型切换不再撞显存 |
+| **Claude Desktop / MCP Agent** | 配置 stdio 启动命令：`node platforms/mcp/cli.mjs stdio` | 启动 `local-media` MCP 服务（核心模块见 [platforms/mcp/server.mjs](platforms/mcp/server.mjs)），分级暴露生图、视频、TTS 与语音识别工具 |
+| **已有 Ollama / ComfyUI / LM Studio** | 打开控制台（`:13000`）-> **引擎与模型中心** -> **扫描本机服务** -> **一键接管** | 保留原有配置与模型权重，立刻获得统一显存调度、API 路由与监控图表 |
+
+---
+
+## 硬件与系统支持矩阵
+
+| 厂商 / 计算后端 | 支持操作系统 | 自动发现方式 | 兼容引擎生态 |
 |---|---|---|---|
-| **NVIDIA CUDA** (`cuda`) | Linux、Windows（含 WSL2） | `nvidia-smi` 查询 | `llama.cpp`、`Ollama`、`vLLM`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
-| **AMD ROCm** (`rocm`) | Linux、Windows | `rocm-smi` / `amd-smi` / sysfs / CIM | 通用主流引擎 + **ROCm Pro Pack**（8 套 R9700 专精包） |
-| **Apple Silicon Metal** (`metal`) | macOS (`arm64`) | 统一内存检测（约 75% 可用预算） | `llama.cpp`、`Ollama`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
-| **Intel / Vulkan** (`vulkan`) | Linux、Windows | `vulkaninfo` / sysfs 降级检测 | `llama.cpp`、`ComfyUI`、`whisper.cpp` |
-| **CPU 模式** (`cpu`) | Linux、macOS、Windows | 宿主内存监控 | `llama.cpp`、`Ollama`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
+| **NVIDIA CUDA** (`cuda`) | Linux、Windows（含 WSL2） | `nvidia-smi` 实时监控 | `llama.cpp`、`Ollama`、`vLLM`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
+| **AMD ROCm** (`rocm`) | Linux、Windows | sysfs / `rocm-smi` / `amd-smi` / CIM | 通用引擎生态 + 可选 ROCm Pro 专精包 |
+| **Apple Silicon Metal** (`metal`) | macOS (`arm64`) | 统一内存预算探测（`sysctl` + `vm_stat`） | `llama.cpp`、`Ollama`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
+| **Intel / Vulkan** (`vulkan`) | Linux、Windows | `vulkaninfo` / sysfs | `llama.cpp`、`ComfyUI`、`whisper.cpp` |
+| **纯 CPU 模式** (`cpu`) | Linux、macOS、Windows | 宿主内存与系统资源采集 | `llama.cpp`、`Ollama`、`ComfyUI`、`whisper.cpp`、`Kokoro` |
 
 ---
 
-## 30 秒演示 GIF（录制指南）
-
-> **演示动图占位**：`<!-- 发布版本前可将 1280x720 30s 演示动图放至 docs/assets/vramdeck-demo.gif -->`
-
-推荐 30 秒演示录制剧本：
-1. 在双卡或混合显存环境中打开 `http://127.0.0.1:13000`，展示多卡显存拓扑中的并发 `PoolAllocation` 占用槽位。
-2. 切入 Hub 页面扫描本机已启动的 Ollama/ComfyUI 服务，点击一键接管并查看不同量化权重的显存适配标签。
-3. 在界面中点击 `EN` / `中文` 完成双语切换收尾。
-
----
-
-## 进阶文档与社区贡献
+## 文档与扩展开发
 
 - **全部文档索引**：[docs/README.md](docs/README.md)
 - **20 分钟接入新引擎**：[docs/guide/ADD_ENGINE.md](docs/guide/ADD_ENGINE.md)
 - **参与贡献与新手任务**：[CONTRIBUTING.md](CONTRIBUTING.md)
 - **一键安装脚本**：[scripts/install.sh](scripts/install.sh) · [scripts/install.ps1](scripts/install.ps1)
+
+<details>
+<summary>可选 ROCm Pro 加速包与传统命令兼容说明</summary>
+
+- 针对 AMD Radeon 工作站显卡的预调优容器镜像包已保留为可选的 **ROCm Pro Pack**（`rocm-pro`）。
+- 原有 `./lab` 命令入口与 `.llm-backend-artifacts` 数据目录标记保持完全兼容（`./lab start`、`./lab check`）。
+
+</details>

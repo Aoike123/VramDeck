@@ -133,13 +133,13 @@ describe('FA10 Tier 1: VramDeck OSS Docs, Templates & Cross-Platform CI', () => 
     assert.doesNotMatch(layoutSrc, /AI Workbench/);
   });
 
-  it('fa10.t1.2 bilingual READMEs include 3-step Quickstart, 4-vendor HW matrix, and 30s Demo GIF guide', async (t) => {
+  it('fa10.t1.2 bilingual READMEs include 3-step Quickstart, 4-vendor HW matrix, and architecture/client guide', async (t) => {
     const ready = await hasM6BrandAndReadmes();
     if (
       !requireDeliverable(
         t,
         ready,
-        'Pending M6 (Feature #24): README.md & README.zh-CN.md Quickstart/HW matrix/GIF guide not delivered',
+        'Pending M6 (Feature #24): README.md & README.zh-CN.md Quickstart/HW matrix/architecture guide not delivered',
       )
     ) {
       return;
@@ -152,14 +152,24 @@ describe('FA10 Tier 1: VramDeck OSS Docs, Templates & Cross-Platform CI', () => 
       ['README.md', readmeEn],
       ['README.zh-CN.md', readmeZh],
     ] as const) {
-      assert.match(content, /Quickstart|快速开始/i, `${docRel} missing Quickstart`);
+      assert.match(content, /Quickstart|快速开始|快速上手/i, `${docRel} missing Quickstart`);
       assert.match(content, /13000/);
       assert.match(content, /18982/);
       assert.match(content, /CUDA/i);
       assert.match(content, /ROCm/i);
       assert.match(content, /Metal/i);
       assert.match(content, /CPU/i);
-      assert.match(content, /GIF|demo|演示/i, `${docRel} missing 30s demo GIF placeholder/guide`);
+      assert.match(content, /How It Works|工作原理/i, `${docRel} missing architecture overview`);
+      assert.match(
+        content,
+        /Cursor|Open WebUI|Ollama|ComfyUI/i,
+        `${docRel} missing client/runtime integration guide`,
+      );
+      assert.doesNotMatch(
+        content,
+        /vramdeck-demo\.gif/i,
+        `${docRel} must not keep stale GIF TODO placeholder`,
+      );
       assertAllRelativeLinksExist(docRel, content);
     }
   });

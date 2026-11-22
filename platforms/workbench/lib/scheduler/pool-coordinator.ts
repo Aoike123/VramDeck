@@ -601,10 +601,18 @@ export class GpuPoolCoordinator {
 
   changed(ms = 1000, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve) => {
-      const done = () => resolve();
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const idx = this.waiters.indexOf(done);
+        if (idx >= 0) this.waiters.splice(idx, 1);
+        signal?.removeEventListener('abort', done);
+        resolve();
+      };
       this.waiters.push(done);
       const timer = setTimeout(done, ms);
-      timer.unref?.();
       signal?.addEventListener('abort', done, { once: true });
     });
   }
@@ -1007,7 +1015,6 @@ export class GpuPoolCoordinator {
             ),
           Math.max(0, timeout * 1000),
         );
-        request.timer.unref?.();
         signal?.addEventListener('abort', request.cancel, { once: true });
         this.queue.push(request);
         this.startTick();

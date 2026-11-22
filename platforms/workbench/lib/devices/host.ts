@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { freemem, totalmem } from 'node:os';
-import { extname, isAbsolute, join } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { HostResources } from '../types.ts';
 
@@ -69,6 +69,24 @@ export async function readHostResources(options?: {
   };
 }
 
+function findCaseInsensitiveMatch(dir: string, candidateNames: string[]): string | null {
+  try {
+    const entries = readdirSync(dir);
+    const byLower = new Map<string, string>();
+    for (const entry of entries) {
+      const lower = entry.toLowerCase();
+      if (!byLower.has(lower)) byLower.set(lower, entry);
+    }
+    for (const name of candidateNames) {
+      const matched = byLower.get(name.toLowerCase());
+      if (matched) return join(dir, matched);
+    }
+  } catch {
+    // Ignore unreadable or missing PATH directories.
+  }
+  return null;
+}
+
 export function resolveWin32Executable(bin: string, env: EnvMap = process.env): string {
   const pathExtRaw = env.PATHEXT ?? env.pathext ?? '.COM;.EXE;.BAT;.CMD';
   const pathExts = pathExtRaw
@@ -84,6 +102,13 @@ export function resolveWin32Executable(bin: string, env: EnvMap = process.env): 
         const candidate = bin + ext;
         if (existsSync(candidate)) return candidate;
       }
+      const base = basename(bin);
+      const candidateNames = [base, ...pathExts.map((ext) => base + ext)];
+      const matched = findCaseInsensitiveMatch(dirname(bin), candidateNames);
+      if (matched) return matched;
+    } else {
+      const matched = findCaseInsensitiveMatch(dirname(bin), [basename(bin)]);
+      if (matched) return matched;
     }
     return bin;
   }
@@ -100,6 +125,8 @@ export function resolveWin32Executable(bin: string, env: EnvMap = process.env): 
       const candidate = join(dir, candidateName);
       if (existsSync(candidate)) return candidate;
     }
+    const matched = findCaseInsensitiveMatch(dir, candidates);
+    if (matched) return matched;
   }
   return bin;
 }
