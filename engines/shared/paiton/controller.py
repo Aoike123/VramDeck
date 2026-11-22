@@ -14,7 +14,7 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parents[3]
 ENGINE_ROOT = Path(__file__).resolve().parent
 PAITON = ENGINE_ROOT / "upstream"
-PROFILES = json.loads((ENGINE_ROOT / "config/profiles.json").read_text())
+PROFILES = json.loads((ENGINE_ROOT / "config/profiles.json").read_text(encoding="utf-8"))
 ENV = dict(os.environ)
 ENV.update({
     "HF_HOME": str(ROOT / "workspace/data/huggingface"),
@@ -28,7 +28,7 @@ ENV.update({
     "HF_HUB_DISABLE_TELEMETRY": "1",
 })
 LOCAL_MODELS_PATH = ROOT / "engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json"
-LOCAL_MODELS = json.loads(LOCAL_MODELS_PATH.read_text()) if LOCAL_MODELS_PATH.exists() else {}
+LOCAL_MODELS = json.loads(LOCAL_MODELS_PATH.read_text(encoding="utf-8")) if LOCAL_MODELS_PATH.exists() else {}
 MODEL_VARIABLES = {"PAITON_TARGET_DIR", "PAITON_DRAFT_DIR", "PAITON_W3ROT_DIR"}
 if set(LOCAL_MODELS) - MODEL_VARIABLES:
     raise RuntimeError("engines/llm/pation-model-qwen38-27b-w3a4/config/local-models.json 包含不支持的模型路径变量")
@@ -53,12 +53,20 @@ def check_local_model(variable):
         raise RuntimeError(f"本地模型文件不完整：{path}")
     index_name = "w3rot-index.json" if variable == "PAITON_W3ROT_DIR" else "model.safetensors.index.json"
     if (path / index_name).is_file():
-        index = json.loads((path / index_name).read_text())
+        index = json.loads((path / index_name).read_text(encoding="utf-8"))
         for filename in set(index.get("weight_map", {}).values()):
             file = path / filename
             if not file.is_file() or file.stat().st_size == 0:
                 raise RuntimeError(f"本地模型索引引用的权重缺失：{file}")
     return path
+
+
+def _safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(" ".join(str(a) for a in args).encode(enc, errors="replace").decode(enc), **kwargs)
 
 
 def run(command, **kwargs):
@@ -211,7 +219,7 @@ def main():
             downloads.append(("EliovpAI/Qwen3.8-27B-W3Rot-INT3-Paiton-RDNA4", "7a2e3d702144f744c1c5a46eaa42c7a2309d5cf7", "PAITON_W3ROT_DIR"))
         for repo, revision, variable in downloads:
             if variable in LOCAL_MODELS:
-                print(f"复用本地模型：{check_local_model(variable)}（跳过下载）")
+                _safe_print(f"复用本地模型：{check_local_model(variable)}（跳过下载）")
                 continue
             tools_python()
             run([ROOT / ".workbench/envs/tools/bin/hf", "download", repo, "--revision", revision, "--local-dir", ENV[variable]])

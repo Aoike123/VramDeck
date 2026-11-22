@@ -1,5 +1,6 @@
 {
   "name": "Qwen3-ASR 1.7B",
+  "pack": "rocm-pro",
   "status": "q8_0；中文、方言与多语种识别",
   "entrypoint": "engines/shared/audiocpp/controller.py",
   "category": "audio",

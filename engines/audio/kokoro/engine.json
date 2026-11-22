@@ -1,0 +1,106 @@
+{
+  "name": "Kokoro TTS",
+  "category": "audio",
+  "deployment_id": "kokoro",
+  "version": "1.0.0",
+  "platform": {
+    "engine": "kokoro",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "kokoro",
+      "name": "Kokoro",
+      "driver": "process",
+      "command": "kokoro-server",
+      "args": ["--host", "127.0.0.1", "--port", "18082"],
+      "port": 18082,
+      "concurrency": 2,
+      "health_path": "/health"
+    },
+    "resources": {
+      "backends": ["cuda", "rocm", "metal", "cpu"],
+      "gpu_count": 1,
+      "vram_mb": 2048,
+      "vram_mode": "shared",
+      "concurrency": 2,
+      "affinity": "any",
+      "cold_start_weight": "low"
+    },
+    "ui": {
+      "name": "Kokoro TTS",
+      "version": "82M",
+      "full_name": "Kokoro · Lightweight TTS",
+      "description": "Fast lightweight text-to-speech synthesis runtime",
+      "kind": "Speech Synthesis",
+      "accent": "#f9a8d4",
+      "symbol": "K",
+      "panel": "media",
+      "log_name": "Kokoro"
+    },
+    "surface": {
+      "speech.synthesize": {
+        "order": 30,
+        "sync": "/v1/audio/speech",
+        "sync_via": "job",
+        "sync_public": false,
+        "group": "generate_speech",
+        "task": "speech",
+        "tool": "generate_speech",
+        "kind": "audio",
+        "label": "语音合成",
+        "legacy_groups": {
+          "generate_audio": {
+            "default": true
+          }
+        },
+        "group_info": {
+          "label": "语音合成",
+          "summary": "合成语音，可克隆音色",
+          "description": "Create a speech job: synthesize text, optionally cloning registered voices (voice_artifact_id from search_voices) or imported clips. Poll get_job."
+        },
+        "category": {
+          "id": "speech",
+          "label": "语音与音色",
+          "summary": "语音合成与克隆；注册、查找、改名音色",
+          "companions": [
+            "search_voices",
+            "update_voice"
+          ]
+        },
+        "description": "synthesize text, optionally cloning imported reference voices",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "合成文本，最长 5000 字。"
+          },
+          "seed": {
+            "$use": "seed"
+          }
+        },
+        "required": [
+          "request_id",
+          "text"
+        ],
+        "example": {
+          "request_id": "speech-001",
+          "text": "你好，欢迎来到工作台。"
+        }
+      }
+    },
+    "models": [
+      {
+        "id": "kokoro-tts",
+        "priority": 40,
+        "capabilities": ["speech.synthesize"],
+        "info": {
+          "tasks": ["speech"]
+        }
+      }
+    ]
+  }
+}

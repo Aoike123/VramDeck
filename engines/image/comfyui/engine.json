@@ -1,0 +1,52 @@
+{
+  "name": "ComfyUI (Generic)",
+  "category": "image",
+  "deployment_id": "comfyui",
+  "version": "1.0.0",
+  "platform": {
+    "engine": "comfyui",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "interruptible": true,
+    "runtime": {
+      "id": "comfyui-generic",
+      "name": "ComfyUI",
+      "driver": "external",
+      "base_url": "http://127.0.0.1:18188",
+      "port": 18188,
+      "health_path": "/system_stats",
+      "native_ui": "http://127.0.0.1:18188"
+    },
+    "resources": {
+      "backends": ["cuda", "rocm", "metal", "vulkan", "cpu"],
+      "gpu_count": 1,
+      "vram_mb": 6144,
+      "vram_mode": "shared",
+      "concurrency": 1,
+      "affinity": "any",
+      "cold_start_weight": "medium"
+    },
+    "ui": {
+      "name": "ComfyUI",
+      "version": "Generic",
+      "full_name": "ComfyUI · Generic Workflow",
+      "description": "Adopt local or remote ComfyUI workflow server for image generation and editing",
+      "kind": "Image Generation",
+      "accent": "#c084fc",
+      "symbol": "C",
+      "panel": "media",
+      "log_name": "ComfyUI"
+    },
+    "surface_files": ["../../shared/capabilities/image.surface.json"],
+    "models": [
+      {
+        "id": "comfyui-workflow",
+        "priority": 50,
+        "capabilities": ["image.generate", "image.edit"],
+        "info": {
+          "tasks": ["text-to-image", "image-to-image"]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+name: Bug Report
+description: Report a bug in VramDeck control plane, GPU scheduler, Hub, or engine adapters
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: gpu_vram
+    attributes:
+      label: GPU & VRAM Configuration
+      description: e.g., 1x RTX 4090 (24 GB CUDA), 2x Radeon R9700 (32 GB ROCm), Apple M3 Max (64 GB Metal), or CPU-only
+      placeholder: "e.g. RTX 4090 24GB + RTX 3060 12GB (CUDA)"
+    validations:
+      required: true
+  - type: input
+    id: node_version
+    attributes:
+      label: Node.js Version
+      placeholder: "v22.19.0+"
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear reproduction steps, HTTP status codes, or logs from `vramdeck status` / `/api/engine-logs`.
+    validations:
+      required: true

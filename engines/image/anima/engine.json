@@ -1,5 +1,6 @@
 {
   "name": "Anima / ComfyUI",
+  "pack": "rocm-pro",
   "status": "Turbo v1.1 / Aesthetic v1.1；与 H3 共用原生 ComfyUI，文生图与图生图重绘",
   "entrypoint": "engines/shared/comfyui/controller.py",
   "models_available_locally": true,

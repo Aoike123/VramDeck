@@ -3,9 +3,13 @@ import importlib.machinery
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import stat
 import subprocess
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -95,9 +99,9 @@ class LabTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
             for name in ("config.json", "tokenizer.json"):
-                (path / name).write_text("{}")
+                (path / name).write_text("{}", encoding="utf-8")
             (path / "present.safetensors").write_bytes(b"test")
-            (path / "model.safetensors.index.json").write_text('{"weight_map":{"tensor":"missing.safetensors"}}')
+            (path / "model.safetensors.index.json").write_text('{"weight_map":{"tensor":"missing.safetensors"}}', encoding="utf-8")
             with patch.dict(lab.ENV, {"PAITON_TARGET_DIR": tmp}):
                 with self.assertRaisesRegex(RuntimeError, "权重缺失"):
                     lab.check_local_model("PAITON_TARGET_DIR")
@@ -111,26 +115,115 @@ class LabTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             metadata = Path(tmp) / "prompts.jsonl"
-            metadata.write_text(json.dumps({"tag": "single_object", "prompt": "a bench", "include": [{"class": "bench", "count": 1}]}) + "\n")
+            metadata.write_text(json.dumps({"tag": "single_object", "prompt": "a bench", "include": [{"class": "bench", "count": 1}]}) + "\n", encoding="utf-8")
             output = Path(tmp) / "samples"
             with patch.object(exporter, "urlopen", side_effect=response):
                 exporter.export(metadata, output, "http://local-test/images", samples=2)
             self.assertEqual([r["seed"] for r in requests], [42, 43])
             self.assertEqual(len(list((output / "00000/samples").glob("*.png"))), 2)
-            self.assertEqual(json.loads((output / "00000/metadata.jsonl").read_text())["tag"], "single_object")
-            self.assertNotIn("b64_json", json.loads((output / "00000/receipt-00000.json").read_text())["data"][0])
+            self.assertEqual(json.loads((output / "00000/metadata.jsonl").read_text(encoding="utf-8"))["tag"], "single_object")
+            self.assertNotIn("b64_json", json.loads((output / "00000/receipt-00000.json").read_text(encoding="utf-8"))["data"][0])
             with self.assertRaises(FileExistsError):
                 exporter.export(metadata, output, "http://local-test/images")
 
     def test_geneval_does_not_save_non_image_response(self):
         with tempfile.TemporaryDirectory() as tmp:
             metadata = Path(tmp) / "prompts.jsonl"
-            metadata.write_text('{"prompt":"a bench"}\n')
+            metadata.write_text('{"prompt":"a bench"}\n', encoding="utf-8")
             fake = io.BytesIO(json.dumps({"data": [{"b64_json": base64.b64encode(b"error page").decode()}]}).encode())
             with patch.object(exporter, "urlopen", return_value=fake):
                 with self.assertRaisesRegex(ValueError, "没有返回 PNG"):
                     exporter.export(metadata, Path(tmp) / "out", "http://local-test/images")
             self.assertFalse(list((Path(tmp) / "out").rglob("*.png")))
+
+    def test_du_measures_files_directories_and_skips_symlinks_without_subprocess(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(dispatcher.du(root / "missing"), 0)
+
+            single = root / "single.bin"
+            single.write_bytes(b"12345")
+            self.assertEqual(dispatcher.du(single), 5)
+
+            nested = root / "nested" / "sub"
+            nested.mkdir(parents=True)
+            (root / "nested" / "a.bin").write_bytes(b"ab")
+            (nested / "b.bin").write_bytes(b"cdef")
+
+            outside = root / "outside.bin"
+            outside.write_bytes(b"X" * 100)
+            link = root / "nested" / "link.bin"
+            try:
+                link.symlink_to(outside)
+            except OSError:
+                pass
+
+            with patch.object(dispatcher.subprocess, "run", side_effect=AssertionError("must not invoke du")):
+                size = dispatcher.du(root / "nested")
+            self.assertGreaterEqual(size, 6)
+            self.assertLess(size, 100)
+
+    def test_du_skips_junctions_and_directory_loops(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data_dir = root / "data"
+            data_dir.mkdir()
+            (data_dir / "payload.bin").write_bytes(b"X" * 33)
+            loop_dir = data_dir / "loop_junc"
+
+            if sys.platform == "win32":
+                res = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(loop_dir), str(data_dir)],
+                    capture_output=True,
+                    text=True,
+                )
+                if res.returncode == 0:
+                    self.assertEqual(dispatcher.du(data_dir), 33)
+                    self.assertEqual(dispatcher.du(loop_dir), 0)
+
+            sub = data_dir / "sub"
+            sub.mkdir(exist_ok=True)
+            (sub / "extra.bin").write_bytes(b"Y" * 10)
+            with patch.object(os.path, "isjunction", side_effect=lambda p: str(p).endswith("sub"), create=True):
+                self.assertEqual(dispatcher.du(data_dir), 33)
+                self.assertEqual(dispatcher.du(sub), 0)
+
+            # Simulate POSIX directory lstat().st_size > 0 (e.g. 4096 on ext4) for junctions and reparse-point dirs
+            posix_dir_stat = SimpleNamespace(
+                st_mode=stat.S_IFDIR | 0o755,
+                st_size=4096,
+                st_ino=999,
+                st_dev=1,
+                st_file_attributes=0,
+            )
+            orig_lstat = Path.lstat
+
+            def fake_posix_lstat(path_obj):
+                if path_obj == sub:
+                    return posix_dir_stat
+                return orig_lstat(path_obj)
+
+            with patch.object(os.path, "isjunction", side_effect=lambda p: str(p).endswith("sub"), create=True), \
+                 patch.object(Path, "lstat", fake_posix_lstat):
+                self.assertEqual(dispatcher.du(sub), 0)
+
+            reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            reparse_dir_stat = SimpleNamespace(
+                st_mode=stat.S_IFDIR | 0o755,
+                st_size=4096,
+                st_ino=1000,
+                st_dev=1,
+                st_file_attributes=reparse_flag,
+            )
+
+            def fake_reparse_lstat(path_obj):
+                if path_obj == sub:
+                    return reparse_dir_stat
+                return orig_lstat(path_obj)
+
+            with patch.object(os.path, "isjunction", return_value=False, create=True), \
+                 patch.object(Path, "lstat", fake_reparse_lstat):
+                self.assertEqual(dispatcher.du(sub), 0)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -91,7 +92,8 @@ class MonitoringTests(unittest.TestCase):
                 password=(data/'grafana-admin-password').read_text()
                 controller.initialize()
                 self.assertEqual(password,(data/'grafana-admin-password').read_text())
-                self.assertEqual((data/'grafana-admin-password').stat().st_mode & 0o777,0o600)
+                if os.name!='nt':
+                    self.assertEqual((data/'grafana-admin-password').stat().st_mode & 0o777,0o600)
                 self.assertIn('PYTHON_IMAGE=python@sha256:example',(data/'runtime.env').read_text())
                 self.assertNotIn(password.strip(),(data/'runtime.env').read_text())
                 self.assertNotIn('GRAFANA_IMAGE=',(data/'runtime.env').read_text())

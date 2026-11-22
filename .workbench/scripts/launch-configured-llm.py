@@ -124,7 +124,7 @@ def command(launcher, args):
     result = subprocess.run([sys.executable, str(launcher), '--release', '65k',
                              '--name', 'paiton-qwen38', '--weights', 'w3a4',
                              *args, '--lm-head', 'bf16', '--dry-run'],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, encoding='utf-8')
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or 'Worker launcher failed')
     if result.stderr:

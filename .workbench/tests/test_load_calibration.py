@@ -3,11 +3,15 @@ from pathlib import Path
 import unittest
 
 path = Path(__file__).resolve().parents[1] / 'cache/dsh-probe/load-calibration.py'
-spec = importlib.util.spec_from_file_location('load_calibration', path)
-load = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(load)
+if path.is_file():
+    spec = importlib.util.spec_from_file_location('load_calibration', path)
+    load = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(load)
+else:
+    load = None
 
 
+@unittest.skipUnless(load is not None, 'requires optional local load-calibration.py cache script')
 class LoadCalibrationTest(unittest.TestCase):
     def test_peak_is_aggregated_from_records_and_requires_real_overlap(self):
         rows = [{'time': t, 'used_bytes': 20 + t, 'free_bytes': 12 - t,

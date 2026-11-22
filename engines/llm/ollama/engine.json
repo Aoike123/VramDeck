@@ -1,0 +1,41 @@
+{
+  "name": "Ollama",
+  "category": "llm",
+  "deployment_id": "ollama",
+  "version": "1.0.0",
+  "platform": {
+    "engine": "ollama",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "ollama",
+      "name": "Ollama",
+      "driver": "external",
+      "base_url": "http://127.0.0.1:11434",
+      "port": 11434,
+      "concurrency": 2,
+      "health_path": "/api/tags"
+    },
+    "resources": {
+      "backends": ["cuda", "rocm", "metal", "cpu"],
+      "gpu_count": 1,
+      "vram_mb": 4096,
+      "vram_mode": "shared",
+      "concurrency": 2,
+      "affinity": "any",
+      "cold_start_weight": "low"
+    },
+    "ui": {
+      "name": "Ollama",
+      "version": "HTTP",
+      "full_name": "Ollama · Local Daemon",
+      "description": "Adopt local Ollama daemon with automatic model discovery over HTTP",
+      "kind": "Language",
+      "accent": "#93c5fd",
+      "symbol": "O",
+      "panel": "llm",
+      "log_name": "Ollama"
+    },
+    "models": []
+  }
+}

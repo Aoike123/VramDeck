@@ -9,6 +9,9 @@ __pycache__/
 node_modules/
 .next/
 .next-*/
+platforms/workbench/next-env.d.ts
+platforms/workbench/tsconfig.next.json
+*.tsbuildinfo
 .pytest_cache/
 .ruff_cache/
 .coverage

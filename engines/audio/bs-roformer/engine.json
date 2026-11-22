@@ -1,5 +1,6 @@
 {
   "name": "BS-RoFormer",
+  "pack": "rocm-pro",
   "status": "ep368 q8_0；MVSEP Multisong 人声 SDR 11.89",
   "entrypoint": "engines/shared/audiocpp/controller.py",
   "category": "audio",

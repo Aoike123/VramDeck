@@ -29,7 +29,9 @@ def initialize():
     lock = HERE/'images.lock.json'
     images = json.loads(lock.read_text())['images'] if lock.exists() else DEFAULT_IMAGES
     images = {key: value for key, value in images.items() if key in DEFAULT_IMAGES}
-    (DATA/'runtime.env').write_text('\n'.join([f'MONITOR_UID={os.getuid()}', f'MONITOR_GID={os.getgid()}', *(f'{key}={value}' for key,value in images.items())])+'\n')
+    uid = getattr(os, 'getuid', lambda: 1000)()
+    gid = getattr(os, 'getgid', lambda: 1000)()
+    (DATA/'runtime.env').write_text('\n'.join([f'MONITOR_UID={uid}', f'MONITOR_GID={gid}', *(f'{key}={value}' for key,value in images.items())])+'\n')
 
 
 def compose(*args, capture=False):

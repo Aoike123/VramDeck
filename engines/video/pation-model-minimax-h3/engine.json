@@ -1,5 +1,6 @@
 {
   "name": "MiniMax H3 / ComfyUI",
+  "pack": "rocm-pro",
   "status": "ROCm 10.1：FL2VA文生/首尾帧及Ref2VA图片、视频、混合参考已接入；最多9图+3视频，20步质量档，ComfyUI动态显存与阶段卸载；验收见workspace/reports/h3-reference-20261019",
   "entrypoint": "engines/shared/paiton/controller.py",
   "delegate_profile": "video-audio",

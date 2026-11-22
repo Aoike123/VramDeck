@@ -24,6 +24,7 @@ class RuntimeTest(unittest.TestCase):
         # Callers that only configure video must gain no image backend argument.
         self.assertEqual(runtime.image_processor_kwargs({'cap_pixels_per_frame':True}), {'cap_pixels_per_frame':True})
 
+    @unittest.skipUnless((root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/dflash/serve.py').is_file(), 'requires optional upstream paiton checkout')
     def test_dflash_entrypoint_retains_setup_and_calls_supported_launcher(self):
         source = (root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/dflash/serve.py').read_text()
         patched = runtime.server_source(source)
@@ -46,6 +47,7 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Unsupported DFlash'):
             runtime.server_source('changed vendor implementation')
 
+    @unittest.skipUnless((root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/_vendor/qwen38/compat/overlays/vllm/platforms/rocm.py').is_file(), 'requires optional upstream paiton checkout')
     def test_hip_stays_hip_across_repeated_sync_and_conflicts_are_rejected(self):
         source = (root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/_vendor/qwen38/compat/overlays/vllm/platforms/rocm.py').read_text()
         patched = runtime.hip_source(source)
@@ -86,6 +88,7 @@ class RuntimeTest(unittest.TestCase):
         with patch.dict('os.environ', {'VLLM_DISABLE_PAITON_PLATFORM':'0'}):
             self.assertFalse(read())
 
+    @unittest.skipUnless((root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/_vendor/qwen38/compat/overlays/vllm/platforms/rocm.py').is_file(), 'requires optional upstream paiton checkout')
     def test_sparse_default_requires_indexed_attention(self):
         source = (root / 'engines/shared/paiton/upstream/paiton_vllm_plugin/_vendor/qwen38/compat/overlays/vllm/platforms/rocm.py').read_text()
         tree = ast.parse(runtime.hip_source(source))

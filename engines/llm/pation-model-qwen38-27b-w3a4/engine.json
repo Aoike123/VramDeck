@@ -1,5 +1,6 @@
 {
   "name": "Qwen3.8 27B W3A4",
+  "pack": "rocm-pro",
   "entrypoint": "engines/shared/paiton/controller.py",
   "status": "统一引擎：256K技术上限、最多八路、固定8GiB KV；网关热更新额度，CPU视觉与medium思考",
   "upstream": "engines/shared/paiton/upstream",
@@ -26,6 +27,7 @@
       "id": "llm",
       "name": "Qwen · vLLM",
       "port": 18983,
+      "concurrency": 2,
       "container": "paiton-qwen38",
       "launch": [
         "pation-model-qwen38-27b-w3a4",

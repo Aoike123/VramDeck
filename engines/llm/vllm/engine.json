@@ -1,0 +1,42 @@
+{
+  "name": "vLLM (OpenAI Server)",
+  "category": "llm",
+  "deployment_id": "vllm",
+  "version": "1.0.0",
+  "platform": {
+    "engine": "vllm",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "vllm",
+      "name": "vLLM",
+      "driver": "docker",
+      "image": "vllm/vllm-openai:latest",
+      "container": "vramdeck-vllm",
+      "port": 18000,
+      "concurrency": 4,
+      "health_path": "/health"
+    },
+    "resources": {
+      "backends": ["cuda", "rocm"],
+      "gpu_count": 1,
+      "vram_mb": 8192,
+      "vram_mode": "shared",
+      "concurrency": 4,
+      "affinity": "any",
+      "cold_start_weight": "high"
+    },
+    "ui": {
+      "name": "vLLM",
+      "version": "OpenAI",
+      "full_name": "vLLM · OpenAI Container",
+      "description": "High-throughput PagedAttention OpenAI server container for NVIDIA CUDA and AMD ROCm",
+      "kind": "Language",
+      "accent": "#fde047",
+      "symbol": "V",
+      "panel": "llm",
+      "log_name": "vLLM"
+    },
+    "models": []
+  }
+}

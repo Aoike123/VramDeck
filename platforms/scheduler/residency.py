@@ -12,7 +12,7 @@ def labelled(name='paiton-qwen38'):
     try:
         value=subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "ai.workbench.resident"}}',name],text=True,stderr=subprocess.DEVNULL).strip()
         return value=='true'
-    except subprocess.CalledProcessError:return False
+    except (subprocess.CalledProcessError,OSError):return False
 
 def request(path,post=False,timeout=5):
     with urlopen(Request('http://127.0.0.1:18983'+path,data=b'' if post else None),timeout=timeout) as r:

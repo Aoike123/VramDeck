@@ -22,7 +22,7 @@ PYTHON = ROOT / ".workbench/envs/tools/bin/python"
 
 
 def active_version():
-    return json.loads((HERE / "sdk.json").read_text())["active"]
+    return json.loads((HERE / "sdk.json").read_text(encoding="utf-8"))["active"]
 
 
 def path():
@@ -40,12 +40,12 @@ def mount():
 
 def checksums(root):
     files = sorted(p for p in root.rglob("*") if p.is_file() and not p.is_symlink() and p.name != "SHA256SUMS" and "__pycache__" not in p.parts)
-    return "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}\n" for p in files)
+    return "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root).as_posix()}\n" for p in files)
 
 
 def install(version):
     """Install the pinned wheels into STORE/<version>, run rocm_sdk init, record SHA256SUMS."""
-    lock = json.loads((HERE / "packages.lock.json").read_text())
+    lock = json.loads((HERE / "packages.lock.json").read_text(encoding="utf-8"))
     for row in lock:
         digest = hashlib.sha256((PACKAGES / row["filename"]).read_bytes()).hexdigest()
         if digest != row["sha256"]:
@@ -63,14 +63,14 @@ def install(version):
         shutil.rmtree(cache, ignore_errors=True)
     if not (staging / "_rocm_sdk_devel/lib/libamdhip64.so").exists():
         raise RuntimeError("rocm_sdk init 没有生成 libamdhip64.so")
-    (staging / "SHA256SUMS").write_text(checksums(staging))
+    (staging / "SHA256SUMS").write_text(checksums(staging), encoding="utf-8")
     staging.rename(final)
     print(f"已安装 ROCm SDK {version}：{final}。切换：修改 {HERE / 'sdk.json'} 的 active。")
 
 
 def verify():
     root = path()
-    expected, actual = (root / "SHA256SUMS").read_text(), checksums(root)
+    expected, actual = (root / "SHA256SUMS").read_text(encoding="utf-8"), checksums(root)
     if expected != actual:
         raise RuntimeError(f"{root} 与 SHA256SUMS 不一致")
     print(f"ROCm SDK {root.name}：{len(actual.splitlines())} 个文件校验一致")

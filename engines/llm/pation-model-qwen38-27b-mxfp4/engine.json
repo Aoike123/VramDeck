@@ -1,5 +1,6 @@
 {
   "name": "Qwen3.8 27B MXFP4",
+  "pack": "rocm-pro",
   "entrypoint": "engines/shared/paiton/controller.py",
   "status": "权重已准备；GPU 推理待验证",
   "upstream": "engines/shared/paiton/upstream",

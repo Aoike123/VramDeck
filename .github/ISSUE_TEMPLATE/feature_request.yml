@@ -1,0 +1,25 @@
+name: Feature Request
+description: Suggest an improvement to VramDeck scheduling, Hub UX, CLI, or OS integration
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: Primary Operating System
+      options:
+        - Cross-platform
+        - Linux
+        - macOS
+        - Windows
+  - type: input
+    id: gpu_vram
+    attributes:
+      label: GPU & VRAM Setup
+      placeholder: "e.g. 2x 12 GB GPUs or 0-GPU host"
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Improvement
+      description: Describe the use case and expected behavior.
+    validations:
+      required: true

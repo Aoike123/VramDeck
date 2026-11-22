@@ -1,0 +1,35 @@
+name: Engine Adapter Request
+description: Propose support for a new local AI runtime, inference backend, or modality engine
+labels: ["enhancement", "engine"]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: Target Operating System
+      options:
+        - Cross-platform (Linux / macOS / Windows)
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: gpu_vram
+    attributes:
+      label: GPU / VRAM & Backend Requirements
+      description: Compute backend (CUDA / ROCm / Metal / Vulkan / CPU) and typical VRAM footprint
+      placeholder: "e.g. CUDA/Metal/CPU, ~6 GB VRAM"
+    validations:
+      required: true
+  - type: input
+    id: runtime_url
+    attributes:
+      label: Upstream Project URL & Driver Kind
+      placeholder: "e.g. https://github.com/... (process | docker | external)"
+    validations:
+      required: true
+  - type: textarea
+    id: api_surface
+    attributes:
+      label: API / Modality Capabilities
+      description: OpenAI-compatible route or media capability (`image.generate`, `audio.transcribe`, `speech.synthesize`, `video.generate`).

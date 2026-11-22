@@ -1,47 +1,126 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {serviceRecords,serviceState,newLogLines,logSummary,cleanLogOutput,engineLogText,followedEngine,engineLabel,setServices} from '../lib/panel.mjs';
+import {
+  serviceRecords,
+  serviceState,
+  newLogLines,
+  logSummary,
+  cleanLogOutput,
+  engineLogText,
+  followedEngine,
+  engineLabel,
+  setServices,
+  deviceSummary,
+} from '../lib/panel.mjs';
 
-test('browsing services isolates records and distinguishes loading, active and target engines',()=>{
-  const d={model:'anima',current_model:'llm',timestamp:2000,active:0,recent:[
-    {model:'llm',finished_at:1900},{model:'anima',finished_at:1950},{model:'anima',finished_at:500},
-  ]};
-  assert.deepEqual(serviceRecords(d,'anima',15),[{model:'anima',finished_at:1950}]);
-  assert.equal(serviceState(null,'anima'),'loading');
-  assert.equal(serviceState(d,'anima'),'inactive');
-  assert.equal(serviceState(d,'llm'),'ready');
-  assert.equal(serviceState({...d,switching:true,switching_target:'anima'},'anima'),'switching');
-  assert.equal(serviceState({...d,switching:true,switching_target:'anima'},'llm'),'inactive');
-  assert.equal(serviceState({...d,pending_llm_mode:'custom'},'llm'),'switching');
+test('browsing services isolates records and distinguishes loading, active and target engines', () => {
+  const d = {
+    model: 'anima',
+    current_model: 'llm',
+    timestamp: 2000,
+    active: 0,
+    recent: [
+      { model: 'llm', finished_at: 1900 },
+      { model: 'anima', finished_at: 1950 },
+      { model: 'anima', finished_at: 500 },
+    ],
+  };
+  assert.deepEqual(serviceRecords(d, 'anima', 15), [{ model: 'anima', finished_at: 1950 }]);
+  assert.equal(serviceState(null, 'anima'), 'loading');
+  assert.equal(serviceState(d, 'anima'), 'inactive');
+  assert.equal(serviceState(d, 'llm'), 'ready');
+  assert.equal(
+    serviceState({ ...d, switching: true, switching_target: 'anima' }, 'anima'),
+    'switching',
+  );
+  assert.equal(
+    serviceState({ ...d, switching: true, switching_target: 'anima' }, 'llm'),
+    'inactive',
+  );
+  assert.equal(serviceState({ ...d, pending_llm_mode: 'custom' }, 'llm'), 'switching');
   // A lease cycle that targets the engine already loaded is no switch: it must not flash "preparing".
-  assert.equal(serviceState({...d,current_model:'llm',switching:true,switching_target:'llm',active:1},'llm'),'busy');
-  assert.equal(serviceState({...d,current_model:'llm',switching:true,switching_target:'llm',active:0},'llm'),'ready');
+  assert.equal(
+    serviceState(
+      { ...d, current_model: 'llm', switching: true, switching_target: 'llm', active: 1 },
+      'llm',
+    ),
+    'busy',
+  );
+  assert.equal(
+    serviceState(
+      { ...d, current_model: 'llm', switching: true, switching_target: 'llm', active: 0 },
+      'llm',
+    ),
+    'ready',
+  );
 });
-test('log tails count new lines across rolling windows and repeated output',()=>{
-  assert.equal(cleanLogOutput('\x1b[32mINFO\x1b[0m progress\rcomplete'),'INFO progress\ncomplete');
-  assert.deepEqual(newLogLines('a\nb\nb\n','b\nb\nc\n'),['c']);
-  assert.deepEqual(newLogLines('a\nb\n','a\nb\n'),[]);
-  assert.deepEqual(newLogLines('a\nb\n','new instance\n'),['new instance']);
-  assert.deepEqual(newLogLines('','ready\n'),['ready']);
-  assert.deepEqual(logSummary(['INFO request done','WARN capacity low','ERROR engine failed','INFO retry']),{
-    text:'ERROR engine failed',level:'error',errors:1,
+test('log tails count new lines across rolling windows and repeated output', () => {
+  assert.equal(cleanLogOutput('\x1b[32mINFO\x1b[0m progress\rcomplete'), 'INFO progress\ncomplete');
+  assert.deepEqual(newLogLines('a\nb\nb\n', 'b\nb\nc\n'), ['c']);
+  assert.deepEqual(newLogLines('a\nb\n', 'a\nb\n'), []);
+  assert.deepEqual(newLogLines('a\nb\n', 'new instance\n'), ['new instance']);
+  assert.deepEqual(newLogLines('', 'ready\n'), ['ready']);
+  assert.deepEqual(
+    logSummary(['INFO request done', 'WARN capacity low', 'ERROR engine failed', 'INFO retry']),
+    {
+      text: 'ERROR engine failed',
+      level: 'error',
+      errors: 1,
+    },
+  );
+});
+
+test('startup log rendering combines actual progress and media output without old Qwen runtime', () => {
+  const progress = { events: [{ source: 'launcher', message: 'download weights' }] };
+  assert.match(
+    engineLogText({ model: 'h3', engine_switch: progress, output: 'container startup' }, true),
+    /download weights[\s\S]*container startup/,
+  );
+  const qwen = engineLogText(
+    { model: 'llm', engine_switch: progress, output: 'previous runtime', startup_output: null },
+    true,
+  );
+  assert.match(qwen, /download weights/);
+  assert.doesNotMatch(qwen, /previous runtime/);
+  assert.match(
+    engineLogText({ model: 'wan', available: false, engine_switch: progress }, true),
+    /download weights/,
+  );
+});
+
+test('the followed engine is the one switching in, else the one running; removed engines keep a label', () => {
+  const running = { model: 'llm', current_model: 'qwen-image' };
+  assert.equal(followedEngine(running), 'qwen-image');
+  assert.equal(followedEngine({ ...running, switching_target: 'wan' }), 'wan');
+  assert.equal(followedEngine({ ...running, pending_llm_mode: 'custom' }), 'llm');
+  setServices([{ id: 'h3', name: 'MiniMax H3' }]);
+  assert.equal(engineLabel('h3'), 'MiniMax H3');
+  assert.equal(engineLabel('tts'), 'tts（已移除）');
+  assert.equal(engineLabel(null), '—');
+  setServices([]);
+});
+
+test('deviceSummary formats single-GPU, multi-GPU, CPU-only and loading states without hardcodes', () => {
+  assert.deepEqual(deviceSummary(null).label, '设备读取中');
+  assert.deepEqual(deviceSummary({ values: {} }).label, 'CPU / 设备待接入');
+  assert.equal(deviceSummary({ values: {} }).vramLabel, '容量待采集');
+  const single = deviceSummary({ gpus: [{ name: 'RTX 4090', vram_total_mb: 24576 }] });
+  assert.equal(single.label, 'RTX 4090');
+  assert.equal(single.vramLabel, '24 GiB');
+  assert.equal(single.poolLabel, '按需推理调度');
+  const multi = deviceSummary({
+    gpus: [
+      { name: 'RTX 4090', vram_total_mb: 24576 },
+      { name: 'RTX 4090', vram_total_mb: 24576 },
+    ],
   });
-});
-
-test('startup log rendering combines actual progress and media output without old Qwen runtime',()=>{
- const progress={events:[{source:'launcher',message:'download weights'}]};
- assert.match(engineLogText({model:'h3',engine_switch:progress,output:'container startup'},true),/download weights[\s\S]*container startup/);
- const qwen=engineLogText({model:'llm',engine_switch:progress,output:'previous runtime',startup_output:null},true);
- assert.match(qwen,/download weights/);assert.doesNotMatch(qwen,/previous runtime/);
- assert.match(engineLogText({model:'wan',available:false,engine_switch:progress},true),/download weights/);
-});
-
-test('the followed engine is the one switching in, else the one running; removed engines keep a label',()=>{
- const running={model:'llm',current_model:'qwen-image'};
- assert.equal(followedEngine(running),'qwen-image');
- assert.equal(followedEngine({...running,switching_target:'wan'}),'wan');
- assert.equal(followedEngine({...running,pending_llm_mode:'custom'}),'llm');
- setServices([{id:'h3',name:'MiniMax H3'}]);
- assert.equal(engineLabel('h3'),'MiniMax H3');assert.equal(engineLabel('tts'),'tts（已移除）');assert.equal(engineLabel(null),'—');
- setServices([]);
+  assert.equal(multi.label, '2× RTX 4090');
+  assert.equal(multi.vramLabel, '48 GiB');
+  assert.equal(multi.poolLabel, '2 卡资源池调度');
+  const zeroOverride = deviceSummary({
+    gpus: [{ name: 'RTX 4090', vram_total_mb: 24576 }],
+    values: { vram_total: 0 },
+  });
+  assert.equal(zeroOverride.vramLabel, '24 GiB');
+  assert.equal(zeroOverride.totalVramBytes, 24576 * 1024 * 1024);
 });

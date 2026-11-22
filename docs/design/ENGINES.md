@@ -21,13 +21,6 @@
 
 ```text
 llm-backend/
-├── lab                           # 用户统一入口
-├── README.md                     # 首页
-├── engines/
-│   ├── llm/       ## 目录与命名
-
-```text
-llm-backend/
 ├── lab                               # 统一入口
 ├── engines/
 │   ├── <category>/<package>/         # 引擎包：engine.json、adapter.mjs、可选 image.json / tests/ / controller.py
@@ -59,7 +52,10 @@ llm-backend/
 
 下线记录：2026-10-20 Wan/FastWan；2026-11 CosyVoice；2026-11-02 FLUX.2 klein（使用频率低，由 Anima 接替图像降级），以及只有占位登记、从未接入的 vLLM、llama.cpp、Strata 三个包。当前运行时与调度见 [运行模式](RUNTIME_TOPOLOGY.md)。
 
-ama3/
+引擎包内部结构示例（以 `engines/audio/fish-drama3/` 为例）：
+
+```text
+engines/audio/fish-drama3/
 ├── engine.json     # 清单：lab 字段、platform 段、storage.data（占用的数据目录）
 ├── adapter.mjs     # 生命周期与能力实现，只引用 engine-sdk.mjs 和 engines/shared/<运行时>/client.mjs
 ├── image.json      # 可选：运行时镜像配方（独占运行时的引擎；共用运行时的配方在 engines/shared/<runtime>/）

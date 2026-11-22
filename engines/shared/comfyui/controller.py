@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import shutil
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import json
 from pathlib import Path
 import subprocess
@@ -25,18 +25,29 @@ NAME=RUNTIME['container']
 WORKFLOWS=RUNTIME_DATA/'user/default/workflows'
 
 
+def _safe_print(*args,**kwargs):
+    try:print(*args,**kwargs)
+    except UnicodeEncodeError:
+        enc=getattr(sys.stdout,'encoding',None) or 'ascii'
+        print(' '.join(str(a) for a in args).encode(enc,errors='replace').decode(enc),**kwargs)
+
+
 def docker(*args,capture=False):
     return subprocess.run(['docker',*map(str,args)],check=True,text=True,capture_output=capture)
 
 
 def sync_workflows():
     """Keep category/workflow at the root; archive migration copies outside the UI."""
-    catalog=json.loads((HERE/'workflows/catalog.json').read_text())['workflows']
+    catalog=json.loads((HERE/'workflows/catalog.json').read_text(encoding='utf-8'))['workflows']
     destination=WORKFLOWS
     destination.mkdir(parents=True,exist_ok=True)
     manifest_path=DATA/'workflow-template-manifest.json'
-    previous=json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
-    stamp=datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d-%H%M%S')
+    previous=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+    try:
+        now=datetime.now(ZoneInfo('Asia/Shanghai'))
+    except (ZoneInfoNotFoundError, KeyError):
+        now=datetime.now().astimezone()
+    stamp=now.strftime('%Y%m%d-%H%M%S')
     archive=DATA/'workflow-backups'/stamp
     preserved=0;updated=0;manifest={}
     def preserve(source,relative):
@@ -72,8 +83,8 @@ def sync_workflows():
         manifest[str(relative)]=digest
     for folder in sorted(destination.rglob('*'),reverse=True):
         if folder.is_dir() and not any(folder.iterdir()):folder.rmdir()
-    manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-    print(f'工作流同步：{len(catalog)}个模板，更新{updated}个，归档{preserved}项；目录为“分类/工作流”。')
+    manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    _safe_print(f'工作流同步：{len(catalog)}个模板，更新{updated}个，归档{preserved}项；目录为“分类/工作流”。')
 
 
 def main():

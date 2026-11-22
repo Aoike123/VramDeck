@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 from urllib.error import URLError
@@ -64,18 +65,70 @@ def engine_command(args):
     state.setdefault("engines", {}).setdefault(name, {})["enabled"] = wanted
     state.setdefault("routing", {})
     engine_registry.STATE.parent.mkdir(parents=True, exist_ok=True)
-    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(("已启用 " if wanted else "已停用 ") + name + "（网关未运行，下次启动生效）")
     return 0
 
 
+def _is_junction_path(path):
+    is_junction = getattr(os.path, "isjunction", None)
+    if callable(is_junction) and is_junction(path):
+        return True
+    path_is_junction = getattr(path, "is_junction", None)
+    if callable(path_is_junction) and path_is_junction():
+        return True
+    return False
+
+
 def du(path):
     """Apparent size of a directory or file, in bytes (0 when absent)."""
-    if not path.exists():
+    target = Path(path)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    try:
+        if _is_junction_path(target):
+            return 0
+        target_stat = target.lstat()
+        if getattr(target_stat, "st_file_attributes", 0) & reparse_flag and stat.S_ISDIR(target_stat.st_mode):
+            return 0
+        if target.is_symlink():
+            return 0 if target.is_dir() else target_stat.st_size
+        if not stat.S_ISDIR(target_stat.st_mode):
+            return target_stat.st_size
+    except OSError:
         return 0
-    result = subprocess.run(["du", "-sb", str(path)], capture_output=True, text=True)
-    # du still prints the total when some cache files are unreadable (root-owned).
-    return int(result.stdout.split()[0]) if result.stdout else 0
+    total = 0
+    visited = set()
+    if target_stat.st_ino:
+        visited.add((target_stat.st_dev, target_stat.st_ino))
+    stack = [target]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    try:
+                        entry_is_junction = getattr(entry, "is_junction", None)
+                        if (callable(entry_is_junction) and entry_is_junction()) or _is_junction_path(entry.path):
+                            continue
+                        if entry.is_symlink():
+                            continue
+                        entry_stat = entry.stat(follow_symlinks=False)
+                        if getattr(entry_stat, "st_file_attributes", 0) & reparse_flag and stat.S_ISDIR(entry_stat.st_mode):
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry_stat.st_ino:
+                                key = (entry_stat.st_dev, entry_stat.st_ino)
+                                if key in visited:
+                                    continue
+                                visited.add(key)
+                            stack.append(entry.path)
+                        else:
+                            total += entry_stat.st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
 
 
 def resources(name, manifests):
@@ -152,24 +205,69 @@ def engine_remove(args):
     shutil.rmtree(r["dir"])
     state = engine_registry.state()
     state.get("engines", {}).pop(name, None)
-    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    engine_registry.STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"已删除 {name}。用 git 提交目录删除；如果它的配方也随包删除，运行时镜像已一并清理。")
     return 0
 
 
+def _node_usable(path):
+    if not path:
+        return False
+    check = "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||a===22&&b>=19?0:1)"
+    try:
+        return subprocess.run([path, "-e", check], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _node_version_key(path):
+    for part in reversed(path.parts):
+        if part.startswith("v"):
+            nums = tuple(int(p) for p in part[1:].split(".") if p.isdigit())
+            if nums:
+                return nums
+    return (0,)
+
+
+def _nvm_node_candidates():
+    candidates = []
+    search_roots = [Path.home() / ".nvm" / "versions" / "node"]
+    for env_var in ("NVM_HOME", "NVM_SYMLINK"):
+        val = os.environ.get(env_var)
+        if val:
+            search_roots.append(Path(val))
+    for app_env in ("APPDATA", "LOCALAPPDATA"):
+        val = os.environ.get(app_env)
+        if val:
+            search_roots.append(Path(val) / "nvm")
+            search_roots.append(Path(val) / "Author Software" / "nvm")
+    exe = "node.exe" if sys.platform == "win32" else "node"
+    patterns = ("v*/bin/node", "v*/node.exe", "installs/v*/node.exe", ".nodejs/node.exe", "node.exe", "bin/node")
+    for root in search_roots:
+        try:
+            if not root.exists():
+                continue
+        except OSError:
+            continue
+        for pattern in patterns:
+            try:
+                for match in root.glob(pattern):
+                    if match.name == exe and match.is_file():
+                        candidates.append(match)
+            except OSError:
+                continue
+    return sorted(set(candidates), key=_node_version_key)
+
+
 def node():
     """Node.js >=22.19 from WORKBENCH_NODE, PATH or nvm; systemd units do not load the nvm PATH."""
-    check = "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||a===22&&b>=19?0:1)"
-    usable = lambda path: path and subprocess.run([path, "-e", check], capture_output=True).returncode == 0
-    found = os.environ.get("WORKBENCH_NODE") or shutil.which("node")
-    if usable(found):
-        return found
-    version = lambda path: tuple(int(part) for part in path.parts[-3].lstrip("v").split(".") if part.isdigit())
-    installed = sorted(Path.home().glob(".nvm/versions/node/v*/bin/node"), key=version)
-    candidates = [str(path) for path in installed if usable(str(path))]
-    if not candidates:
-        raise RuntimeError("Node.js >=22.19 required; set WORKBENCH_NODE.")
-    return candidates[-1]
+    for found in (os.environ.get("WORKBENCH_NODE"), shutil.which("node")):
+        if _node_usable(found):
+            return found
+    for candidate in reversed(_nvm_node_candidates()):
+        if _node_usable(str(candidate)):
+            return str(candidate)
+    raise RuntimeError("Node.js >=22.19 required; set WORKBENCH_NODE.")
 
 
 def main(argv=None):
@@ -215,7 +313,8 @@ def main(argv=None):
             print(f"[{category}]")
             for name, info in engines.items():
                 if info["category"] == category:
-                    print(f"  {name:12} {info['name']:24} {info['status']}")
+                    status = info.get("status") or info.get("platform", {}).get("ui", {}).get("description", "")
+                    print(f"  {name:12} {info['name']:24} {status}")
         return 0
     if args[0] == "models":
         selected = [ALIASES.get(name, name) for name in args[1:]] or list(engines)
@@ -224,7 +323,7 @@ def main(argv=None):
                 raise RuntimeError(f"未知引擎：{name}")
             path = engines[name]["_dir"] / "config/models.json"
             print(f"[{name}]")
-            models = json.loads(path.read_text())
+            models = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
             if not models:
                 print("  本地模型未发现，首次启动由上游准备")
             for model in models:

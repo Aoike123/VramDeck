@@ -16,7 +16,7 @@ import storage  # noqa: E402
 def export(metadata_path, output, endpoint, limit=None, samples=4, size=1024):
     if samples < 1 or (limit is not None and limit < 1):
         raise ValueError("samples 和 limit 必须大于零")
-    records = [json.loads(line) for line in metadata_path.read_text().splitlines() if line.strip()]
+    records = [json.loads(line) for line in metadata_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if limit is not None:
         records = records[:limit]
     output.mkdir(parents=True, exist_ok=False)
@@ -24,12 +24,12 @@ def export(metadata_path, output, endpoint, limit=None, samples=4, size=1024):
                 "prompt_count": len(records), "partial_suite": limit is not None,
                 "steps": 40, "guidance": 1.0, "seed_rule": "42 + prompt_index * samples + sample_index",
                 "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "sources": json.loads((ROOT / ".workbench/sources.lock.json").read_text())}
-    (output / "protocol.json").write_text(json.dumps(protocol, indent=2))
+                "sources": json.loads((ROOT / ".workbench/sources.lock.json").read_text(encoding="utf-8"))}
+    (output / "protocol.json").write_text(json.dumps(protocol, indent=2), encoding="utf-8")
     for index, metadata in enumerate(records):
         folder = output / f"{index:05d}"
         (folder / "samples").mkdir(parents=True)
-        (folder / "metadata.jsonl").write_text(json.dumps(metadata) + "\n")
+        (folder / "metadata.jsonl").write_text(json.dumps(metadata) + "\n", encoding="utf-8")
         for sample in range(samples):
             payload = {"prompt": metadata["prompt"], "size": f"{size}x{size}",
                        "n": 1, "seed": 42 + index * samples + sample, "steps": 40, "guidance": 1.0}
@@ -43,7 +43,7 @@ def export(metadata_path, output, endpoint, limit=None, samples=4, size=1024):
             (folder / "samples" / f"{sample:05d}.png").write_bytes(png)
             receipt["data"][0].pop("b64_json")
             receipt.update({"request": payload, "http_seconds": time.perf_counter() - started})
-            (folder / f"receipt-{sample:05d}.json").write_text(json.dumps(receipt, indent=2))
+            (folder / f"receipt-{sample:05d}.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
             print(f"{index+1}/{len(records)} prompt, sample {sample+1}/{samples}", flush=True)
     return output
 

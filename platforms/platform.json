@@ -1,5 +1,5 @@
 {
-  "mode": "single-gpu-demand-switching",
+  "mode": "few-gpu-pool",
   "gateway_port": 18982,
   "management_port": 13000,
   "control_port": 18990,
@@ -7,12 +7,9 @@
   "next_dist": ".next-workbench",
   "storage": {
     "state": "workspace/data/media",
-    "artifacts": "/media/aoike/Resource_Trad/Assets",
+    "artifacts": "auto",
     "marker": ".llm-backend-artifacts",
-    "import_roots": [
-      "/media/aoike/Resource_Trad/Assets",
-      "/media/aoike/Resource_Trad/Project"
-    ],
+    "import_roots": ["auto"],
     "quota_gib": 500,
     "min_free_gib": 50
   }

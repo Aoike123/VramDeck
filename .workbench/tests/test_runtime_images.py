@@ -1,10 +1,12 @@
 """Runtime image recipes, the shared SDK mount, registered storage and engine package resources."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / ".workbench/runtime"))
@@ -78,13 +80,13 @@ class SdkTests(unittest.TestCase):
             old_store, old_here = sdk.STORE, sdk.HERE
             sdk.STORE, sdk.HERE = Path(directory) / "sdk", Path(directory)
             try:
-                (Path(directory) / "sdk.json").write_text(json.dumps({"active": "9.9"}))
+                (Path(directory) / "sdk.json").write_text(json.dumps({"active": "9.9"}), encoding="utf-8")
                 with self.assertRaisesRegex(RuntimeError, "共享 ROCm SDK 不完整"):
                     sdk.mount()
                 library = Path(directory) / "sdk/9.9/_rocm_sdk_devel/lib/libamdhip64.so"
                 library.parent.mkdir(parents=True)
-                library.write_text("")
-                self.assertEqual(sdk.mount(), ["-v", f"{directory}/sdk/9.9:/opt/rocm101-sdk:ro"])
+                library.write_text("", encoding="utf-8")
+                self.assertEqual(sdk.mount(), ["-v", f"{Path(directory) / 'sdk/9.9'}:/opt/rocm101-sdk:ro"])
                 self.assertIn("_rocm_sdk_devel/lib/libamdhip64.so", sdk.checksums(Path(directory) / "sdk/9.9"))
             finally:
                 sdk.STORE, sdk.HERE = old_store, old_here
@@ -92,8 +94,8 @@ class SdkTests(unittest.TestCase):
     def test_every_gpu_launch_point_mounts_the_sdk(self):
         for path in ("engines/image/pation-model-qwen-image-21/controller.py", ".workbench/runtime/cpu-vision/controller.py",
                      ".workbench/scripts/launch-configured-llm.py", "engines/shared/audiocpp/controller.py", ".workbench/scripts/run-vbench.py"):
-            self.assertIn("sdk.mount()", (ROOT / path).read_text(), path)
-        self.assertIn("PAITON_ROCM101_SDK", (ROOT / "engines/shared/paiton/controller.py").read_text())
+            self.assertIn("sdk.mount()", (ROOT / path).read_text(encoding="utf-8"), path)
+        self.assertIn("PAITON_ROCM101_SDK", (ROOT / "engines/shared/paiton/controller.py").read_text(encoding="utf-8"))
 
 
 class StorageTests(unittest.TestCase):
@@ -104,12 +106,43 @@ class StorageTests(unittest.TestCase):
             try:
                 with self.assertRaisesRegex(RuntimeError, "作品盘未挂载"):
                     storage.canvas()
-                (Path(directory) / storage.CONFIG["marker"]).write_text("")
+                (Path(directory) / storage.CONFIG["marker"]).write_text("", encoding="utf-8")
                 self.assertEqual(storage.manual("anima"), Path(directory) / "manual/anima")
                 self.assertEqual(storage.mounts()[-1], f"{directory}:{directory}:ro")
             finally:
                 storage.CONFIG.clear()
                 storage.CONFIG.update(old)
+
+    def test_auto_storage_resolution_and_env_overrides(self):
+        self.assertEqual(storage.CONFIG["artifacts"], "auto")
+        self.assertEqual(storage.CONFIG["import_roots"], ["auto"])
+        with tempfile.TemporaryDirectory() as directory:
+            custom_state = Path(directory) / "state"
+            custom_artifacts = Path(directory) / "artifacts"
+            custom_import = Path(directory) / "extra"
+            env = {
+                "MEDIA_STATE_ROOT": str(custom_state),
+                "MEDIA_ARTIFACTS_ROOT": str(custom_artifacts),
+                "MEDIA_IMPORT_ROOTS": str(custom_import),
+            }
+            with patch.dict(os.environ, env, clear=False):
+                self.assertEqual(storage.state(), custom_state)
+                with self.assertRaisesRegex(RuntimeError, "作品盘未挂载"):
+                    storage.artifacts(require=True)
+                self.assertEqual(storage.artifacts(require=False), custom_artifacts)
+                self.assertEqual(storage.import_roots(), [custom_artifacts, custom_import])
+
+            auto_base = Path(directory) / "auto-base"
+            auto_env = {
+                "MEDIA_ARTIFACTS_ROOT": "",
+                "LOCALAPPDATA": str(auto_base),
+                "XDG_DATA_HOME": str(auto_base),
+            }
+            with patch.dict(os.environ, auto_env, clear=False):
+                roots = storage.import_roots()
+                self.assertTrue(any(str(auto_base) in str(r) for r in roots) or sys.platform == "darwin")
+                if sys.platform != "darwin":
+                    self.assertFalse(auto_base.exists(), "import_roots() must not create auto artifacts dir")
 
     def test_shared_data_and_runtimes_survive_removing_one_package(self):
         manifests = cli.registry()
@@ -125,7 +158,7 @@ class StorageTests(unittest.TestCase):
                      *ROOT.glob("platforms/*/lib/*.mjs")]:
             if "upstream" in path.parts:
                 continue
-            self.assertFalse("workspace/outputs" in path.read_text(), path)
+            self.assertFalse("workspace/outputs" in path.read_text(encoding="utf-8"), path)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.next-*/
+workspace/
+**/package-lock.json
+engines/shared/comfyui/schema/h3.json
+engines/shared/comfyui/workflows/
+engines/**/graphs/
+**/upstream/
+.workbench/vendor/
+.workbench/envs/
+.workbench/cache/
+platforms/workbench/next-env.d.ts
+platforms/workbench/tsconfig.next.json

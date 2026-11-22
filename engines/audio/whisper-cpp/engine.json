@@ -1,0 +1,102 @@
+{
+  "name": "whisper.cpp Server",
+  "category": "audio",
+  "deployment_id": "whisper-cpp",
+  "version": "1.0.0",
+  "platform": {
+    "engine": "whisper-cpp",
+    "default_enabled": false,
+    "adapter": "adapter.mjs",
+    "runtime": {
+      "id": "whisper-cpp",
+      "name": "whisper.cpp",
+      "driver": "process",
+      "command": "whisper-server",
+      "args": ["--host", "127.0.0.1", "--port", "18081"],
+      "port": 18081,
+      "concurrency": 2,
+      "health_path": "/health"
+    },
+    "resources": {
+      "backends": ["cuda", "rocm", "metal", "vulkan", "cpu"],
+      "gpu_count": 1,
+      "vram_mb": 2048,
+      "vram_mode": "shared",
+      "concurrency": 2,
+      "affinity": "any",
+      "cold_start_weight": "low"
+    },
+    "ui": {
+      "name": "whisper.cpp",
+      "version": "ASR",
+      "full_name": "whisper.cpp · ASR Server",
+      "description": "Lightweight native speech recognition server via CUDA, ROCm, Metal, Vulkan, or CPU",
+      "kind": "Speech Recognition",
+      "accent": "#86efac",
+      "symbol": "W",
+      "panel": "media",
+      "log_name": "whisper.cpp"
+    },
+    "surface": {
+      "audio.transcribe": {
+        "order": 41,
+        "sync": "/v1/audio/transcriptions",
+        "sync_via": "job",
+        "sync_public": false,
+        "group": "process_audio",
+        "task": "transcribe",
+        "tool": "transcribe_audio",
+        "kind": "text",
+        "label": "语音识别",
+        "legacy_groups": {
+          "generate_audio": {}
+        },
+        "group_info": {
+          "label": "音频处理",
+          "summary": "人声分离、语音识别",
+          "description": "Create an audio analysis job on an imported clip. Poll get_job."
+        },
+        "category": {
+          "id": "audio",
+          "label": "音频处理",
+          "summary": "人声分离、语音识别"
+        },
+        "description": "transcribe audio_asset_id; the transcript is a JSON artifact (text, plus timed words and segments unless timestamps=false) and metrics.text",
+        "base": {
+          "request_id": {
+            "$use": "request_id"
+          },
+          "audio_asset_id": {
+            "$use": "id",
+            "description": "Imported audio asset_id (import_media kind=audio)."
+          },
+          "timestamps": {
+            "type": "boolean",
+            "default": true,
+            "description": "Return a timed track (word- and sentence-level start/end seconds) alongside the text. Default true; false returns plain text only and skips alignment."
+          }
+        },
+        "required": [
+          "request_id",
+          "audio_asset_id"
+        ],
+        "example": {
+          "request_id": "transcribe-001",
+          "task": "transcribe",
+          "audio_asset_id": "asset_example",
+          "timestamps": true
+        }
+      }
+    },
+    "models": [
+      {
+        "id": "whisper-cpp-asr",
+        "priority": 30,
+        "capabilities": ["audio.transcribe"],
+        "info": {
+          "tasks": ["transcribe"]
+        }
+      }
+    ]
+  }
+}

@@ -35,6 +35,15 @@ ROCM_ENV = {"ROCM_PATH": "/opt/rocm101", "HIP_PATH": "/opt/rocm101", "ROCM_SDK_T
             "LD_LIBRARY_PATH": "/opt/rocm101/lib:/opt/rocm101/lib64"}
 
 
+def _safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        text = " ".join(str(a) for a in args)
+        print(text.encode(enc, errors="replace").decode(enc), **kwargs)
+
+
 def run(*args, capture=False, **kwargs):
     return subprocess.run(list(map(str, args)), check=True, text=True, capture_output=capture, **kwargs)
 
@@ -46,7 +55,7 @@ def recipes():
     for file in sorted([*ROOT.glob("engines/**/image.json"), *ROOT.glob(".workbench/evaluation/*/image.json")]):
         if "upstream" in file.relative_to(ROOT).parts:
             continue
-        recipe = json.loads(file.read_text())
+        recipe = json.loads(file.read_text(encoding="utf-8"))
         for key in ("runtime", "repository", "base", "steps"):
             if key not in recipe:
                 raise ValueError(f"{file}: {key} is required")
@@ -57,13 +66,13 @@ def recipes():
 
 
 def state():
-    return json.loads(STATE.read_text()) if STATE.exists() else {}
+    return json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
 
 
 def save(value):
     STATE.parent.mkdir(parents=True, exist_ok=True)
     temporary = STATE.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(STATE)
 
 
@@ -111,7 +120,7 @@ def script(recipe, context):
     lines = ["set -eu"]
     for index, step in enumerate(recipe["steps"]):
         if "script" in step:
-            path = step["script"] if "/" in step["script"] else str((STEPS / step["script"]).relative_to(ROOT))
+            path = step["script"] if "/" in step["script"] else (STEPS / step["script"]).relative_to(ROOT).as_posix()
             runner = "sh" if path.endswith(".sh") else "python3"
             lines.append(f"echo '== {path}'")
             lines.append(f"{runner} /src/{path}")
@@ -168,7 +177,7 @@ def build(runtime):
                "recipe": str(recipe["_file"]), "steps": recipe["steps"], "sdk": root.name,
                "cpu_check": result, "gpu_qualified": False}
     REPORTS.mkdir(parents=True, exist_ok=True)
-    (REPORTS / f"{runtime}-{tag.rsplit(':', 1)[1]}.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n")
+    (REPORTS / f"{runtime}-{tag.rsplit(':', 1)[1]}.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已构建 {tag}（{image_info(tag)['Size'] / 2**30:.1f} GiB 压缩）。GPU 验收后执行：./lab runtime activate {runtime} {tag}")
     return tag
 
@@ -189,7 +198,7 @@ def activate(runtime, tag):
     current = value.get(runtime, {}).get("image")
     value[runtime] = {"image": tag, **({"previous": current} if current and current != tag else {})}
     save(value)
-    print(f"{runtime} → {tag}" + (f"（回滚：./lab runtime activate {runtime} {current}）" if current and current != tag else ""))
+    _safe_print(f"{runtime} → {tag}" + (f"（回滚：./lab runtime activate {runtime} {current}）" if current and current != tag else ""))
 
 
 def human(size):

@@ -1,5 +1,6 @@
 {
   "name": "Fish Audio Drama 3",
+  "pack": "rocm-pro",
   "status": "experimental：Q4_K_S GGUF 全部驻留显存；中文克隆、情绪标签已实测",
   "entrypoint": "engines/shared/audiocpp/controller.py",
   "category": "audio",

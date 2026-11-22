@@ -2,7 +2,13 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'runtime/rocm101'))
+import sdk  # noqa: E402
 
 spec = importlib.util.spec_from_file_location('configured', Path(__file__).parents[1] / 'scripts/launch-configured-llm.py')
 configured = importlib.util.module_from_spec(spec)
@@ -10,6 +16,11 @@ spec.loader.exec_module(configured)
 
 
 class ConfiguredWorkerTest(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(sdk, 'mount', return_value=['-v', '/mock/sdk:/opt/rocm101-sdk:ro'])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_explicit_serving_defaults_preserve_sampling_and_processor_options(self):
         argv = ['docker', 'run', '-e', 'OMP_NUM_THREADS=6', 'image', 'serve', '/models/target',
                 '--max-model-len', '204800', '--max-num-seqs', '2',
@@ -122,3 +133,19 @@ class ConfiguredWorkerTest(unittest.TestCase):
         argv = ['docker', 'run', 'image', 'serve', '/models/target', '--max-model-len', '65536']
         with self.assertRaisesRegex(ValueError, 'missing --max-num-seqs'):
             configured.configure(argv)
+
+    def test_command_decodes_non_ascii_utf8_stdout_under_cp1252(self):
+        stub = ['docker', 'run', '--rm', 'image', 'serve', '/models/管理模型',
+                '--max-model-len', '65536', '--max-num-seqs', '2',
+                '--kv-cache-memory-bytes', '8859648000',
+                '--compilation-config', json.dumps({'cudagraph_capture_sizes': [1, 2]}),
+                '--speculative-config', json.dumps({'num_speculative_tokens': 7})]
+        with tempfile.TemporaryDirectory() as directory:
+            child = Path(directory) / 'child.py'
+            child.write_text(
+                'import json, sys\n'
+                f'sys.stdout.buffer.write(json.dumps({stub!r}, ensure_ascii=False).encode("utf-8"))\n',
+                encoding='utf-8',
+            )
+            result = configured.command(child, ['--context', '65536'])
+        self.assertIn('/models/管理模型', result)

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PLATFORM = json.loads((ROOT / "platforms/platform.json").read_text())
+PLATFORM = json.loads((ROOT / "platforms/platform.json").read_text(encoding="utf-8"))
 STATE = ROOT / PLATFORM["state_file"]
 
 
@@ -11,13 +11,13 @@ def manifests():
     """Every engine package, keyed by deployment id (or directory name)."""
     found = {}
     for file in sorted(ROOT.glob("engines/*/*/engine.json")):
-        manifest = json.loads(file.read_text())
+        manifest = json.loads(file.read_text(encoding="utf-8"))
         found[manifest.get("deployment_id", file.parent.name)] = {**manifest, "_dir": file.parent}
     return found
 
 
 def state():
-    return json.loads(STATE.read_text()) if STATE.exists() else {}
+    return json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
 
 
 def enabled(package_id, manifest):

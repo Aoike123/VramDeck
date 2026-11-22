@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  python-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run Python test suites
+        run: python .workbench/scripts/check-project.py --suite python
+
+  node-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            platforms/workbench/package-lock.json
+            platforms/mcp/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+      - name: Install workbench dependencies
+        working-directory: platforms/workbench
+        run: npm ci
+      - name: Install MCP dependencies
+        working-directory: platforms/mcp
+        run: npm ci
+      - name: TypeScript typecheck
+        working-directory: platforms/workbench
+        run: npm run typecheck
+      - name: Prettier format check
+        working-directory: platforms/workbench
+        run: npm run format:check
+      - name: Circular import check
+        working-directory: platforms/workbench
+        run: npm run check:cycles
+      - name: Run Node test suites
+        run: python .workbench/scripts/check-project.py --suite node
+      - name: Verify Next.js build
+        working-directory: platforms/workbench
+        env:
+          WORKBENCH_NEXT_DIST: .next-ci
+        run: npm run build

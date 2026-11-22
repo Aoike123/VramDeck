@@ -20,7 +20,7 @@
 - 调用模型：[API 参考](api/CURRENT_API.md)；对外开放见 [公网 API](api/PUBLIC_API.md)；MCP 见 [媒体 MCP](api/MEDIA_MCP.md)
 - 调整聊天模型：[LLM 配置](guide/LLM_MODES.md)
 - 排查：[服务说明](guide/SERVICES.md) → [实现架构](design/ARCHITECTURE.md)
-- 接入新引擎：[引擎目录](design/ENGINES.md)
+- 接入新引擎：[新增引擎指南](guide/ADD_ENGINE.md) · [引擎目录](design/ENGINES.md)
 
 ## guide/ 使用与运维
 
@@ -31,6 +31,7 @@
 | [服务说明](guide/SERVICES.md) | systemd 单元、端口、容器、目录及启动原理 |
 | [LLM 配置](guide/LLM_MODES.md) | 上下文、并发、Eager、KV 预算、应用流程及历史容量 |
 | [开发与整理](guide/DEVELOPMENT.md) | 目录职责、统一测试入口、构建产物与归档恢复 |
+| [新增引擎指南](guide/ADD_ENGINE.md) | 20 分钟接入新引擎：V2 清单、资源声明与 SDK 隔离边界 |
 
 ## api/ 接口
 
@@ -49,6 +50,7 @@
 | [实现架构](design/ARCHITECTURE.md) | 工作台进程、指标、GPU 调度与工作流生命周期 |
 | [模型调度](design/MODEL_SCHEDULING.md) | 请求生命周期、互斥边界和未启用的内存驻留实验 |
 | [引擎目录](design/ENGINES.md) | 引擎包注册、命名、`platform.surface`、接入新引擎 |
+| [少 GPU 升维方案](design/FEW_GPU_UPGRADE_PLAN.md) | 跨平台多硬件、1–4 卡资源池调度、原生驱动与快速下载中心路线图 |
 
 组件说明：[工作台](../platforms/workbench/README.md) · [MCP](../platforms/mcp/README.md) · [调度辅助](../platforms/scheduler/README.md) · [监控](../platforms/monitoring/README.md)。各引擎的启动和配置说明在对应 `engines/` 子目录的 README，入口见 [引擎目录](design/ENGINES.md)。
 

@@ -32,7 +32,7 @@ class PolicyTests(unittest.TestCase):
                 launch.assert_not_called()
 
     def test_invalid_launch_keeps_running_model(self):
-        with patch.object(ab.controller,'model_env'),patch.object(ab.launcher,'command',side_effect=ValueError('invalid policy')),patch.object(ab.subprocess,'run') as run:
+        with patch.object(ab.controller,'model_env'),patch.object(ab.controller.images,'active',return_value='mock-image'),patch.object(ab.launcher,'command',side_effect=ValueError('invalid policy')),patch.object(ab.subprocess,'run') as run:
             with self.assertRaises(ValueError):ab.start_policy({})
             run.assert_not_called()
 
