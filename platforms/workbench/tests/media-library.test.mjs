@@ -207,7 +207,7 @@ test('image and video thumbnails are small WebP files cached on the state disk',
       { artifact_id: 'artifact_' + 'b'.repeat(32), kind: 'video', local_path: mp4 },
       320,
     );
-    assert.equal((await sharp(video.path).metadata()).width, 320);
+    assert.equal((await sharp(await readFile(video.path)).metadata()).width, 320);
   } else {
     t.diagnostic('ffmpeg not installed; skipping video thumbnail check');
   }

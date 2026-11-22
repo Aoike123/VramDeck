@@ -271,6 +271,13 @@ def node():
 
 
 def main(argv=None):
+    if sys.platform == "win32":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                try:
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
     args = list(sys.argv[1:] if argv is None else argv)
     if args:
         args[0] = ALIASES.get(args[0], args[0])

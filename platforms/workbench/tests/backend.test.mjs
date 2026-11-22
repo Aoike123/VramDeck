@@ -445,6 +445,8 @@ test('command translates ROOT + lab to .workbench/cli.py on win32', async (t) =>
     translated.options.env.PYTHONPYCACHEPREFIX,
     join(ROOT, '.workbench', 'cache', 'python'),
   );
+  assert.equal(translated.options.env.PYTHONUTF8, '1');
+  assert.equal(translated.options.env.PYTHONIOENCODING, 'utf-8');
 
   process.env.WORKBENCH_PYTHON = 'custom-python';
   const custom = resolveCommand(join(ROOT, 'lab'), ['--help'], {}, 'win32');

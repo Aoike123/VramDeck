@@ -9,6 +9,8 @@ import sharp from 'sharp';
 import { capabilityForTool, CAPABILITIES } from './capabilities.mjs';
 import { fail } from './media-store.mjs';
 
+if (process.platform === 'win32') sharp.cache(false);
+
 const run = promisify(execFile);
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled', 'unknown']);
 // State groups the console filters by; unknown counts as a failure for the reader.

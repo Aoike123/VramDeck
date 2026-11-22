@@ -23,6 +23,8 @@ export function resolveCommand(bin, args, options = {}, platform = process.platf
         ...options,
         env: {
           ...process.env,
+          PYTHONUTF8: '1',
+          PYTHONIOENCODING: 'utf-8',
           ...options.env,
           PYTHONPYCACHEPREFIX: join(ROOT, '.workbench', 'cache', 'python'),
         },
