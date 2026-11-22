@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { SERVICES, serviceName, fmt, clock } from '../lib/panel.mjs';
 import GpuTopology from './gpu-topology';
+import { t } from './i18n.mjs';
 import RuntimeSummary from './runtime-summary';
 import { ActionButton, Icon } from './ui-controls.mjs';
 import { useRead } from './use-read.mjs';
@@ -25,29 +26,34 @@ export function Overview({ data, locale = 'en', onService, onLibrary, onOpen }) 
   const services = Array.isArray(data?.services) ? data.services : SERVICES;
   const cards = [
     [
-      '当前后端',
-      data?.runtime_topology?.current_runtime_name ?? (data ? '待机' : '读取中'),
-      '按需启动',
+      t(locale, 'kpiRuntime'),
+      data?.runtime_topology?.current_runtime_name ??
+        (data ? t(locale, 'standby') : t(locale, 'loading')),
+      t(locale, 'kpiRuntimeNote'),
     ],
     [
-      'GPU 租约',
-      data ? (data.runtime_topology?.leased ? '占用中' : '空闲') : '—',
-      'API / MCP 共用',
+      t(locale, 'kpiLease'),
+      data
+        ? data.runtime_topology?.leased
+          ? t(locale, 'kpiLeaseLeased')
+          : t(locale, 'idle')
+        : '—',
+      t(locale, 'kpiLeaseNote'),
     ],
-    ['网关等待', data?.queued ?? '—', '等待 GPU 的请求'],
-    ['进行中的媒体任务', media?.pending_jobs ?? '—', 'API / MCP 提交的未完成任务'],
+    [t(locale, 'kpiQueued'), data?.queued ?? '—', t(locale, 'kpiQueuedNote')],
+    [t(locale, 'kpiMediaJobs'), media?.pending_jobs ?? '—', t(locale, 'kpiMediaJobsNote')],
   ];
   const state = (service) =>
     data?.switching_target === service.id
-      ? ['preparing', '正在切换']
+      ? ['preparing', t(locale, 'serviceStateSwitching')]
       : data?.current_model === service.id
-        ? ['live', '运行中']
-        : ['muted', '按需启动'];
+        ? ['live', t(locale, 'serviceStateRunning')]
+        : ['muted', t(locale, 'serviceStateOnDemand')];
   return (
     <div className="control-center">
       {error && (
         <p className="error-banner" role="alert">
-          媒体任务状态读取失败：{error}
+          {t(locale, 'overviewMediaError')}: {error}
         </p>
       )}
       <section className="stage-kpis">
@@ -59,10 +65,11 @@ export function Overview({ data, locale = 'en', onService, onLibrary, onOpen }) 
           </div>
         ))}
       </section>
+      <GpuTopology data={data} locale={locale} />
       <section className="mcp-card">
         <div className="charthead">
-          <h2>模型服务</h2>
-          <span className="muted tiny">点击查看监控、作品与任务</span>
+          <h2>{t(locale, 'overviewServicesTitle')}</h2>
+          <span className="muted tiny">{t(locale, 'overviewServicesHint')}</span>
         </div>
         <div className="service-catalog">
           {services.map((service) => {
@@ -83,13 +90,13 @@ export function Overview({ data, locale = 'en', onService, onLibrary, onOpen }) 
                 <p>{service.description}</p>
                 <span className="catalog-foot">
                   {service.panel === 'llm'
-                    ? '对话 · 同步接口'
+                    ? t(locale, 'serviceChatSync')
                     : jobs
-                      ? jobs + ' 个持久任务'
-                      : '暂无持久任务'}
+                      ? t(locale, 'serviceJobsCount', { n: jobs })
+                      : t(locale, 'serviceNoJobs')}
                   {service.runtime &&
                     services.filter((s) => s.runtime === service.runtime).length > 1 && (
-                      <span>共用 {service.runtime}</span>
+                      <span>{t(locale, 'serviceSharedRuntime', { runtime: service.runtime })}</span>
                     )}
                 </span>
               </button>
@@ -103,12 +110,11 @@ export function Overview({ data, locale = 'en', onService, onLibrary, onOpen }) 
         onOpen={onOpen}
         title={
           <div className="charthead">
-            <h2>最近作品</h2>
-            <ActionButton onClick={onLibrary}>打开作品库</ActionButton>
+            <h2>{t(locale, 'overviewArtifactsTitle')}</h2>
+            <ActionButton onClick={onLibrary}>{t(locale, 'overviewOpenLibrary')}</ActionButton>
           </div>
         }
       />
-      <GpuTopology data={data} locale={locale} />
       <RuntimeSummary topology={data?.runtime_topology} />
     </div>
   );

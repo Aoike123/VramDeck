@@ -23,6 +23,12 @@ const shapes = {
   ],
   check: [['path', { d: 'm5 12 4 4L19 6' }]],
   filter: [['path', { d: 'M4 6h16M7 12h10M10 18h4' }]],
+  hub: [
+    ['rect', { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }],
+    ['rect', { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }],
+    ['rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }],
+    ['rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 }],
+  ],
   collapse: [['path', { d: 'm7 10 5 5 5-5M5 20h14' }]],
   terminal: [
     ['rect', { x: 3, y: 4, width: 18, height: 16, rx: 3 }],

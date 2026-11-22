@@ -10,7 +10,13 @@ import { Overview, TaskCenter, ApiPanel, GatewayRecords } from './control-center
 import EnginesPanel from './engines-panel';
 import HubPanel from './hub-panel';
 import VoiceLibrary from './voice-library';
-import { normalizeLocale, resolveLocale, t } from './i18n.mjs';
+import {
+  formatPoolBadge,
+  formatSidebarDevice,
+  normalizeLocale,
+  resolveLocale,
+  t,
+} from './i18n.mjs';
 import { Gallery, JobTable, JobDrawer } from './media-library';
 import { useDisclosureAnimation } from './use-disclosure-animation.mjs';
 import { useRoute } from './use-route.mjs';
@@ -529,18 +535,6 @@ const NAVIGATION = [
   ['keys', 'key', '访问与公网', '密钥、放行与额度'],
 ];
 const HEADINGS = {
-  overview: [
-    'VRAMDECK CONTROL PLANE',
-    'Overview',
-    '1–4 GPU Control Plane',
-    'Inspect GPU pool topology, allocations, active engines, and recent artifacts.',
-  ],
-  hub: [
-    'ENGINE & MODEL HUB',
-    'Hub',
-    'Scan, Pull & Adopt',
-    'Discover local runtimes, match VRAM quantizations, download weights, and adopt services.',
-  ],
   library: [
     'ARTIFACTS',
     '作品库',
@@ -568,8 +562,23 @@ const HEADINGS = {
     '管理谁能调用网关（密钥与额度），以及公网能访问哪些接口。',
   ],
 };
-function Heading({ section }) {
-  const [eyebrow, title, sub, text] = HEADINGS[section] ?? HEADINGS.overview;
+function Heading({ section, locale = 'en' }) {
+  const [eyebrow, title, sub, text] =
+    section === 'overview'
+      ? [
+          t(locale, 'headingOverviewEyebrow'),
+          t(locale, 'headingOverviewTitle'),
+          t(locale, 'headingOverviewSub'),
+          t(locale, 'headingOverviewText'),
+        ]
+      : section === 'hub'
+        ? [
+            t(locale, 'headingHubEyebrow'),
+            t(locale, 'headingHubTitle'),
+            t(locale, 'headingHubSub'),
+            t(locale, 'headingHubText'),
+          ]
+        : (HEADINGS[section] ?? HEADINGS.library);
   return (
     <section className="service-identity">
       <div>
@@ -610,7 +619,7 @@ export default function Page() {
   }, []);
   const navItems = [
     ['overview', 'activity', t(locale, 'navOverview'), t(locale, 'navOverviewDesc')],
-    ['hub', 'filter', t(locale, 'navHub'), t(locale, 'navHubDesc')],
+    ['hub', 'hub', t(locale, 'navHub'), t(locale, 'navHubDesc')],
     ['library', 'image', t(locale, 'navLibrary'), t(locale, 'navLibraryDesc')],
     ['tasks', 'tasks', t(locale, 'navTasks'), t(locale, 'navTasksDesc')],
     ['services', 'settings', t(locale, 'navServices'), t(locale, 'navServicesDesc')],
@@ -631,6 +640,8 @@ export default function Page() {
   }, [data?.services]);
   const services = Array.isArray(data?.services) ? data.services : SERVICES;
   const device = deviceSummary(data);
+  const sidebarDevice = formatSidebarDevice(device, data, locale);
+  const poolBadge = formatPoolBadge(device.gpus, locale);
   const section = route.section,
     openJob = (id) => navigate({ job: id }),
     closeJob = () => navigate({ job: null });
@@ -748,16 +759,34 @@ export default function Page() {
     >
       <aside className="service-sidebar">
         <div className="studio-brand">
-          <span aria-hidden="true">✦</span>
-          <strong>VramDeck</strong>
-        </div>
-        <div className="filter-row" role="group" aria-label="Language">
-          <button aria-pressed={locale === 'en'} onClick={() => switchLocale('en')}>
-            EN
-          </button>
-          <button aria-pressed={locale === 'zh-CN'} onClick={() => switchLocale('zh-CN')}>
-            中文
-          </button>
+          <div className="studio-brand-id">
+            <img
+              src="/vramdeck-icon.png"
+              alt=""
+              width="22"
+              height="22"
+              style={{ borderRadius: 6, flexShrink: 0 }}
+            />
+            <strong>VramDeck</strong>
+          </div>
+          <div className="lang-switch" role="group" aria-label="Language">
+            <button
+              type="button"
+              title="English"
+              aria-pressed={locale === 'en'}
+              onClick={() => switchLocale('en')}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              title="切换为中文"
+              aria-pressed={locale === 'zh-CN'}
+              onClick={() => switchLocale('zh-CN')}
+            >
+              中
+            </button>
+          </div>
         </div>
         <span className="sidebar-caption">{t(locale, 'sidebarControl')}</span>
         <nav className="service-navigation" aria-label="Navigation">
@@ -769,7 +798,7 @@ export default function Page() {
                 Math.max(
                   0,
                   navItems.findIndex(([id]) => id === section),
-                ) * 72
+                ) * 56
               }px)`,
             }}
           />
@@ -793,13 +822,21 @@ export default function Page() {
             </a>
           ))}
         </nav>
-        <section className="sidebar-status" aria-label="工作台状态">
+        <section className="sidebar-status" aria-label={t(locale, 'sidebarControl')}>
           <div className="sidebar-status-heading">
             <i className={error ? 'status-offline' : data ? 'status-online' : 'status-pending'} />
-            <span>{error ? '连接暂时中断' : data ? '网关监控已连接' : '正在连接'}</span>
+            <span>
+              {error
+                ? t(locale, 'statusOffline')
+                : data
+                  ? t(locale, 'statusConnected')
+                  : t(locale, 'statusConnecting')}
+            </span>
           </div>
           <span className="sidebar-status-label">
-            {effective?.switching_target ? '正在切换' : '当前运行后端'}
+            {effective?.switching_target
+              ? t(locale, 'statusSwitching')
+              : t(locale, 'statusActiveEngine')}
           </span>
           {runningService ? (
             <button
@@ -809,26 +846,26 @@ export default function Page() {
               {[runningService.name, runningService.version].filter(Boolean).join(' ')}
             </button>
           ) : (
-            <strong>{data ? '待机' : '读取中'}</strong>
+            <strong>{data ? t(locale, 'standby') : t(locale, 'loading')}</strong>
           )}
           <small className="sidebar-runtime-state">
             {error
-              ? '状态待确认'
+              ? t(locale, 'statusStateUnconfirmed')
               : !data
-                ? '等待采集'
+                ? t(locale, 'statusStateSampling')
                 : effective?.switching_target
-                  ? '正在准备引擎'
+                  ? t(locale, 'statusStatePreparing')
                   : runningService
-                    ? '按需运行'
-                    : '等待任务'}
+                    ? t(locale, 'statusStateOnDemand')
+                    : t(locale, 'statusStateAwaiting')}
           </small>
           <div className="sidebar-device">
-            <span>{device.label}</span>
-            <small>{device.vramLabel}</small>
+            <span>{sidebarDevice.label}</span>
+            <small>{sidebarDevice.vramLabel}</small>
           </div>
           {canvas && (
             <a href={canvas} target="_blank" rel="noreferrer">
-              <span>ComfyUI 画布</span>
+              <span>{t(locale, 'statusCanvas')}</span>
               <Icon name="external" />
             </a>
           )}
@@ -847,12 +884,12 @@ export default function Page() {
             )}
           </span>
           <span>
-            {device.poolLabel} <i /> API / MCP Unified Pool
+            {poolBadge} <i /> API / MCP
           </span>
         </div>
         {section === 'overview' && (
           <>
-            <Heading section="overview" />
+            <Heading section="overview" locale={locale} />
             <Overview
               data={data}
               locale={locale}
@@ -865,13 +902,13 @@ export default function Page() {
         )}
         {section === 'hub' && (
           <>
-            <Heading section="hub" />
-            <HubPanel locale={locale} />
+            <Heading section="hub" locale={locale} />
+            <HubPanel data={data} locale={locale} />
           </>
         )}
         {section === 'library' && (
           <>
-            <Heading section="library" />
+            <Heading section="library" locale={locale} />
             <div className="workspace-stage">
               <Gallery onOpen={openJob} limit={30} />
             </div>
@@ -879,19 +916,19 @@ export default function Page() {
         )}
         {section === 'tasks' && (
           <>
-            <Heading section="tasks" />
+            <Heading section="tasks" locale={locale} />
             <TaskCenter data={data} onOpen={openJob} openId={route.job} />
           </>
         )}
         {section === 'api' && (
           <>
-            <Heading section="api" />
+            <Heading section="api" locale={locale} />
             <ApiPanel />
           </>
         )}
         {section === 'mcp' && (
           <>
-            <Heading section="mcp" />
+            <Heading section="mcp" locale={locale} />
             <div className="workspace-stage">
               <McpPanel />
             </div>
@@ -899,7 +936,7 @@ export default function Page() {
         )}
         {section === 'engines' && (
           <>
-            <Heading section="engines" />
+            <Heading section="engines" locale={locale} />
             <div className="workspace-stage">
               <EnginesPanel />
             </div>
@@ -907,7 +944,7 @@ export default function Page() {
         )}
         {section === 'keys' && (
           <>
-            <Heading section="keys" />
+            <Heading section="keys" locale={locale} />
             <div className="workspace-stage">
               <AccessKeyManager />
             </div>
